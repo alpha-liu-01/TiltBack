@@ -647,8 +647,6 @@ QHash<QString, QString> udevProperties(const QString &sysPath);
 
 int residualFromUdev(const Digitizer &dev)
 {
-    if (!compositorPickedCurrentRules())
-        return 0;
     if (!dev.sysName.isEmpty()) {
         const QString sys = eventSysPath(dev.sysName);
         const QHash<QString, QString> props = udevProperties(sys);
@@ -780,6 +778,7 @@ UdevNode nodeFromIdentity(const QString &name, quint32 vendor, quint32 product,
     node.digitizer.sysName = eventName;
     node.digitizer.path = sys;
     node.digitizer.ok = true;
+    node.digitizer.r = residualFromUdev(node.digitizer);
     return node;
 }
 
@@ -1144,6 +1143,7 @@ Digitizer GnomeBackend::resolve(DigitizerClass kind, const Digitizer *identity)
     const QVector<UdevNode> nodes = scanUdevNodes();
     Digitizer first;
     Digitizer stylus;
+    Digitizer picked;
     for (const UdevNode &node : nodes) {
         if (kind == DigitizerClass::Finger) {
             if (!node.touch)
@@ -1152,18 +1152,28 @@ Digitizer GnomeBackend::resolve(DigitizerClass kind, const Digitizer *identity)
             if (!node.tablet || node.eraser)
                 continue;
         }
-        if (identity && identity->ok && sameIdentity(*identity, node.digitizer))
-            return node.digitizer;
-        if (identity && !identity->name.isEmpty() && sameIdentity(*identity, node.digitizer))
-            return node.digitizer;
+        if (identity && identity->ok && sameIdentity(*identity, node.digitizer)) {
+            picked = node.digitizer;
+            break;
+        }
+        if (identity && !identity->name.isEmpty() && sameIdentity(*identity, node.digitizer)) {
+            picked = node.digitizer;
+            break;
+        }
         if (!first.ok)
             first = node.digitizer;
         if (kind == DigitizerClass::Pen && !stylus.ok && isStylusName(node.digitizer.name))
             stylus = node.digitizer;
     }
-    if (kind == DigitizerClass::Pen && stylus.ok)
-        return stylus;
-    return first;
+    if (!picked.ok)
+        picked = (kind == DigitizerClass::Pen && stylus.ok) ? stylus : first;
+    if (picked.ok) {
+        bool ok = false;
+        picked.r = getResidual(picked, &ok);
+        if (!ok)
+            picked.r = 0;
+    }
+    return picked;
 }
 
 void GnomeBackend::bindBuiltinOutputs()
