@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=TiltBack Follow
+Comment=Keep touch and stylus aligned when Plasma rotates the display
+Exec=/home/user/.local/bin/tiltback-follow
+X-KDE-autostart-phase=2
+X-KDE-autostart-after=panel
+StartupNotify=false
