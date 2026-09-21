@@ -1,5 +1,8 @@
+#include "clinicmodel.h"
+
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
+#include <cstdio>
 
 int main(int argc, char *argv[])
 {
@@ -8,6 +11,13 @@ int main(int argc, char *argv[])
     app.setOrganizationDomain(QStringLiteral("tiltback.org"));
     app.setApplicationName(QStringLiteral("TiltBack"));
     app.setDesktopFileName(QStringLiteral("org.tiltback.TiltBack"));
+
+    const QStringList args = app.arguments();
+    if (args.contains(QStringLiteral("--report"))) {
+        ClinicModel clinic;
+        std::fprintf(stdout, "%s\n", qPrintable(clinic.reportText()));
+        return 0;
+    }
 
     QQmlApplicationEngine engine;
     QObject::connect(
