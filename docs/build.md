@@ -1,6 +1,6 @@
 # Building TiltBack
 
-Plasma Wayland / KWin only. The binary will not rotate GNOME or X11.
+KWin (Plasma Wayland) is the default backend. An X11 RandR + XInput backend is compiled when `libx11`, `libxrandr`, and `libxi` are present. Missing those packages is not a hard fail: Alpine musl / a Wayland-only host still builds KWin-only. The binary will not rotate GNOME or Phosh.
 
 Two host paths. Do not mix their outputs: a glibc binary will not run on postmarketOS musl, and the Alpine musl binary is for pmOS.
 
@@ -17,11 +17,13 @@ QML is interpreted (`NO_CACHEGEN`). Alpine 3.22 ships Qt 6.8; postmarketOS 26.06
 
 | Family | Install |
 | --- | --- |
-| Debian / Ubuntu | `sudo apt install cmake ninja-build g++ pkg-config libdrm-dev qt6-base-dev qt6-declarative-dev` |
-| Fedora | `sudo dnf install cmake ninja-build gcc-c++ pkgconf-pkg-config libdrm-devel qt6-qtbase-devel qt6-qtdeclarative-devel` |
-| Arch | `sudo pacman -S --needed cmake ninja gcc pkgconf libdrm qt6-base qt6-declarative` |
-| Alpine (native) | `sudo apk add cmake ninja g++ pkgconf libdrm-dev qt6-qtbase-dev qt6-qtdeclarative-dev` |
-| openSUSE | `sudo zypper install cmake ninja gcc-c++ pkgconf-pkg-config libdrm-devel qt6-base-devel qt6-declarative-devel` |
+| Debian / Ubuntu | `sudo apt install cmake ninja-build g++ pkg-config libdrm-dev qt6-base-dev qt6-declarative-dev libx11-dev libxrandr-dev libxi-dev` |
+| Fedora | `sudo dnf install cmake ninja-build gcc-c++ pkgconf-pkg-config libdrm-devel qt6-qtbase-devel qt6-qtdeclarative-devel libX11-devel libXrandr-devel libXi-devel` |
+| Arch | `sudo pacman -S --needed cmake ninja gcc pkgconf libdrm qt6-base qt6-declarative libx11 libxrandr libxi` |
+| Alpine (native) | `sudo apk add cmake ninja g++ pkgconf libdrm-dev qt6-qtbase-dev qt6-qtdeclarative-dev` — X11 optional: `libx11-dev libxrandr-dev libxi-dev` |
+| openSUSE | `sudo zypper install cmake ninja gcc-c++ pkgconf-pkg-config libdrm-devel qt6-base-devel qt6-declarative-devel libX11-devel libXrandr-devel libXi-devel` |
+
+X11 session packages are recommended so CMake defines `TILTBACK_X11`. A Wayland-only or Alpine musl build without them still produces a KWin clinic.
 
 Ninja is preferred. Without it, `./scripts/build.sh` uses Unix Makefiles.
 
@@ -39,6 +41,8 @@ Default prefix is `~/.local` (no root). `PREFIX` overrides it.
 
 If `PREFIX/bin` is not on `PATH`, the installed desktop file gets an absolute `Exec=`. Launch from the Plasma app menu or:
 
+Plasma Wayland:
+
 ```sh
 export XDG_RUNTIME_DIR=/run/user/$(id -u)
 export WAYLAND_DISPLAY=wayland-0
@@ -47,6 +51,8 @@ systemd-run --user \
   -E WAYLAND_DISPLAY -E XDG_RUNTIME_DIR -E DBUS_SESSION_BUS_ADDRESS \
   "$HOME/.local/bin/tiltback"
 ```
+
+X11 / XFCE (example): `DISPLAY=:0`, `XAUTHORITY` from the session, `XDG_RUNTIME_DIR=/run/user/$(id -u)`, and the session bus. Never `pkill -f tiltback`.
 
 Never `pkill -f tiltback` (it matches SSH).
 

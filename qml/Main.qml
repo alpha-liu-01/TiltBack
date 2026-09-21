@@ -205,9 +205,28 @@ ApplicationWindow {
                     Button {
                         width: (parent.width - parent.spacing) / 2
                         height: Math.max(64, Math.round(root.height * 0.08))
+                        text: qsTr("None")
+                        font.pixelSize: Math.max(20, Math.round(root.width * 0.024))
+                        onClicked: clinic.applyPicture("none")
+                    }
+                    Button {
+                        width: (parent.width - parent.spacing) / 2
+                        height: Math.max(64, Math.round(root.height * 0.08))
                         text: qsTr("Left")
                         font.pixelSize: Math.max(20, Math.round(root.width * 0.024))
                         onClicked: clinic.applyPicture("left")
+                    }
+                }
+                Row {
+                    spacing: 12
+                    width: parent.width
+
+                    Button {
+                        width: (parent.width - parent.spacing) / 2
+                        height: Math.max(64, Math.round(root.height * 0.08))
+                        text: qsTr("Inverted")
+                        font.pixelSize: Math.max(20, Math.round(root.width * 0.024))
+                        onClicked: clinic.applyPicture("inverted")
                     }
                     Button {
                         width: (parent.width - parent.spacing) / 2
@@ -225,23 +244,26 @@ ApplicationWindow {
                 how: clinic.fingerSource
                 backend: clinic.fingerBackend
 
-                Row {
-                    spacing: 12
+                Flow {
+                    id: fingerR
                     width: parent.width
+                    spacing: 8
 
-                    Button {
-                        width: (parent.width - parent.spacing) / 2
-                        height: Math.max(64, Math.round(root.height * 0.08))
-                        text: qsTr("R=0")
-                        font.pixelSize: Math.max(20, Math.round(root.width * 0.024))
-                        onClicked: clinic.applyFinger(0)
-                    }
-                    Button {
-                        width: (parent.width - parent.spacing) / 2
-                        height: Math.max(64, Math.round(root.height * 0.08))
-                        text: qsTr("R=8")
-                        font.pixelSize: Math.max(20, Math.round(root.width * 0.024))
-                        onClicked: clinic.applyFinger(8)
+                    Repeater {
+                        model: [
+                            { r: 0, label: qsTr("R=0 Primary") },
+                            { r: 1, label: qsTr("R=1 Portrait") },
+                            { r: 2, label: qsTr("R=2 Landscape") },
+                            { r: 4, label: qsTr("R=4 Inv. Portrait") },
+                            { r: 8, label: qsTr("R=8 Inv. Landscape") }
+                        ]
+                        Button {
+                            width: (fingerR.width - 16) / 3
+                            height: Math.max(64, Math.round(root.height * 0.08))
+                            text: modelData.label
+                            font.pixelSize: Math.max(16, Math.round(root.width * 0.018))
+                            onClicked: clinic.applyFinger(modelData.r)
+                        }
                     }
                 }
             }
@@ -252,23 +274,26 @@ ApplicationWindow {
                 how: clinic.penSource
                 backend: clinic.penBackend
 
-                Row {
-                    spacing: 12
+                Flow {
+                    id: penR
                     width: parent.width
+                    spacing: 8
 
-                    Button {
-                        width: (parent.width - parent.spacing) / 2
-                        height: Math.max(64, Math.round(root.height * 0.08))
-                        text: qsTr("R=0")
-                        font.pixelSize: Math.max(20, Math.round(root.width * 0.024))
-                        onClicked: clinic.applyPen(0)
-                    }
-                    Button {
-                        width: (parent.width - parent.spacing) / 2
-                        height: Math.max(64, Math.round(root.height * 0.08))
-                        text: qsTr("R=8")
-                        font.pixelSize: Math.max(20, Math.round(root.width * 0.024))
-                        onClicked: clinic.applyPen(8)
+                    Repeater {
+                        model: [
+                            { r: 0, label: qsTr("R=0 Primary") },
+                            { r: 1, label: qsTr("R=1 Portrait") },
+                            { r: 2, label: qsTr("R=2 Landscape") },
+                            { r: 4, label: qsTr("R=4 Inv. Portrait") },
+                            { r: 8, label: qsTr("R=8 Inv. Landscape") }
+                        ]
+                        Button {
+                            width: (penR.width - 16) / 3
+                            height: Math.max(64, Math.round(root.height * 0.08))
+                            text: modelData.label
+                            font.pixelSize: Math.max(16, Math.round(root.width * 0.018))
+                            onClicked: clinic.applyPen(modelData.r)
+                        }
                     }
                 }
             }
@@ -283,7 +308,7 @@ ApplicationWindow {
                 title: qsTr("Home / Follow")
                 value: clinic.homeLine
                 detail: clinic.persistLine + "\n" + clinic.followStatus
-                how: qsTr("home.json + kcminputrc Orientation=; follow restamps R only")
+                how: clinic.persistHow
                 backend: qsTr("follow is the lock, not an apply button")
 
                 Row {

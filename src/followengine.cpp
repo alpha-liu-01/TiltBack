@@ -6,8 +6,6 @@
 #include <QFileSystemWatcher>
 #include <QStringList>
 #include <QTimer>
-#include <QtDBus/QDBusConnection>
-#include <QtDBus/QDBusMessage>
 #include <cstdio>
 
 namespace TiltBack {
@@ -35,50 +33,32 @@ void logLine(const QString &line)
 
 FollowEngine::FollowEngine(QObject *parent)
     : QObject(parent)
+    , m_backend(createBackend(this))
     , m_watcher(new QFileSystemWatcher(this))
     , m_debounce(new QTimer(this))
-    , m_tick(new QTimer(this))
     , m_delayed(new QTimer(this))
 {
     m_debounce->setSingleShot(true);
     m_debounce->setInterval(120);
     connect(m_debounce, &QTimer::timeout, this, &FollowEngine::onDebounce);
 
-    m_tick->setInterval(400);
-    connect(m_tick, &QTimer::timeout, this, &FollowEngine::onTick);
-
     m_delayed->setSingleShot(true);
     m_delayed->setInterval(400);
     connect(m_delayed, &QTimer::timeout, this, &FollowEngine::onDelayedStamp);
 
     connect(m_watcher, &QFileSystemWatcher::directoryChanged, this, &FollowEngine::onDirChanged);
+    connect(m_backend, &OrientationBackend::poseChanged, this, &FollowEngine::onPoseChanged);
+    connect(m_backend, &OrientationBackend::devicesChanged, this, &FollowEngine::onDevicesChanged);
 }
 
 int FollowEngine::start()
 {
     const QString product = readSysfs(QStringLiteral("/sys/class/dmi/id/product_name"));
     m_home = loadHome(product);
-    if (m_home.tHome.isEmpty())
-        m_home = w620Home();
-
-    QDBusConnection bus = QDBusConnection::sessionBus();
-    if (!bus.isConnected()) {
-        logLine(QStringLiteral("follow: no session bus"));
+    if (m_home.tHome.isEmpty()) {
+        logLine(QStringLiteral("follow: no home.json — save home first"));
         return 1;
     }
-
-    bus.connect(QStringLiteral("org.kde.KWin"), QString(),
-                QStringLiteral("org.freedesktop.DBus.Properties"),
-                QStringLiteral("PropertiesChanged"), this,
-                SLOT(onPropertiesChanged(QDBusMessage)));
-    bus.connect(QStringLiteral("org.kde.KWin"),
-                QStringLiteral("/org/kde/KWin/InputDevice"),
-                QStringLiteral("org.kde.KWin.InputDeviceManager"),
-                QStringLiteral("deviceAdded"), this, SLOT(onDeviceChanged()));
-    bus.connect(QStringLiteral("org.kde.KWin"),
-                QStringLiteral("/org/kde/KWin/InputDevice"),
-                QStringLiteral("org.kde.KWin.InputDeviceManager"),
-                QStringLiteral("deviceRemoved"), this, SLOT(onDeviceChanged()));
 
     m_homePath = homeProfilePath();
     m_homeMtime = QFileInfo(m_homePath).lastModified();
@@ -97,10 +77,11 @@ int FollowEngine::start()
         logLine(QStringLiteral("follow: finger not resolved"));
     if (!m_pen.ok)
         logLine(QStringLiteral("follow: pen not resolved"));
+    m_backend->watchPose();
     stamp(QStringLiteral("startup"));
     QTimer::singleShot(2000, this, [this]() { stamp(QStringLiteral("startup-retry")); });
-    m_tick->start();
-    logLine(QStringLiteral("follow idle (D-Bus + dir watch + 0.4s Get tick) R_touch=%1 R_pen=%2")
+    logLine(QStringLiteral("follow idle (%1) R_touch=%2 R_pen=%3")
+                .arg(m_backend->id())
                 .arg(m_home.rTouch)
                 .arg(m_home.rPen));
     return 0;
@@ -118,26 +99,8 @@ void FollowEngine::resolveTargets()
     wantPen.vendor = m_home.penVendor;
     wantPen.product = m_home.penProduct;
     wantPen.ok = !m_home.penName.isEmpty();
-    m_finger = resolveDigitizer(DigitizerClass::Finger, wantFinger.ok ? &wantFinger : nullptr);
-    m_pen = resolveDigitizer(DigitizerClass::Pen, wantPen.ok ? &wantPen : nullptr);
-    bindDeviceSignals();
-}
-
-void FollowEngine::bindDeviceSignals()
-{
-    QDBusConnection bus = QDBusConnection::sessionBus();
-    if (m_finger.ok) {
-        bus.connect(QStringLiteral("org.kde.KWin"), m_finger.path,
-                    QStringLiteral("org.freedesktop.DBus.Properties"),
-                    QStringLiteral("PropertiesChanged"), this,
-                    SLOT(onPropertiesChanged(QDBusMessage)));
-    }
-    if (m_pen.ok) {
-        bus.connect(QStringLiteral("org.kde.KWin"), m_pen.path,
-                    QStringLiteral("org.freedesktop.DBus.Properties"),
-                    QStringLiteral("PropertiesChanged"), this,
-                    SLOT(onPropertiesChanged(QDBusMessage)));
-    }
+    m_finger = m_backend->resolve(DigitizerClass::Finger, wantFinger.ok ? &wantFinger : nullptr);
+    m_pen = m_backend->resolve(DigitizerClass::Pen, wantPen.ok ? &wantPen : nullptr);
 }
 
 void FollowEngine::schedule(const QString &reason)
@@ -152,41 +115,17 @@ void FollowEngine::stamp(const QString &reason)
         return;
     if (!m_finger.ok || !m_pen.ok)
         resolveTargets();
-
-    auto one = [&](Digitizer *dev, int want) {
-        if (!dev->ok || dev->path.isEmpty())
-            return;
-        bool ok = false;
-        const int live = getOrientation(dev->path, &ok);
-        if (!ok) {
-            resolveTargets();
-            if (!dev->ok)
-                return;
-        }
-        const int now = ok ? live : getOrientation(dev->path, &ok);
-        if (!ok || now == want)
-            return;
-        QString err;
-        if (setOrientation(dev->path, want, &err))
-            logLine(QStringLiteral("follow %1 %2 R=%3 -> %4").arg(reason, dev->name).arg(now).arg(want));
-        else
-            logLine(QStringLiteral("follow set %1 failed: %2").arg(dev->name, err));
-    };
-    one(&m_finger, m_home.rTouch);
-    one(&m_pen, m_home.rPen);
+    QString err;
+    if (!m_backend->stampFollow(m_home, &err))
+        logLine(QStringLiteral("follow %1 stamp failed: %2").arg(reason, err));
 }
 
-void FollowEngine::onPropertiesChanged(const QDBusMessage &message)
+void FollowEngine::onPoseChanged()
 {
-    const QString path = message.path();
-    if (!path.startsWith(QLatin1String("/org/kde/KWin/InputDevice/")))
-        return;
-    if (path == QLatin1String("/org/kde/KWin/InputDevice"))
-        return;
-    schedule(QStringLiteral("kwin property"));
+    schedule(QStringLiteral("pose"));
 }
 
-void FollowEngine::onDeviceChanged()
+void FollowEngine::onDevicesChanged()
 {
     resolveTargets();
     schedule(QStringLiteral("device list"));
@@ -204,12 +143,6 @@ void FollowEngine::onDirChanged(const QString &path)
 void FollowEngine::onDebounce()
 {
     stamp(m_reason.isEmpty() ? QStringLiteral("debounce") : m_reason);
-}
-
-void FollowEngine::onTick()
-{
-    reloadHomeIfChanged();
-    stamp(QStringLiteral("tick"));
 }
 
 void FollowEngine::reloadHomeIfChanged()

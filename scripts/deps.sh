@@ -55,19 +55,20 @@ done
 
 case $family in
     debian)
-        pkgs='sudo apt install cmake ninja-build g++ pkg-config libdrm-dev qt6-base-dev qt6-declarative-dev'
+        pkgs='sudo apt install cmake ninja-build g++ pkg-config libdrm-dev qt6-base-dev qt6-declarative-dev libx11-dev libxrandr-dev libxi-dev'
         ;;
     fedora)
-        pkgs='sudo dnf install cmake ninja-build gcc-c++ pkgconf-pkg-config libdrm-devel qt6-qtbase-devel qt6-qtdeclarative-devel'
+        pkgs='sudo dnf install cmake ninja-build gcc-c++ pkgconf-pkg-config libdrm-devel qt6-qtbase-devel qt6-qtdeclarative-devel libX11-devel libXrandr-devel libXi-devel'
         ;;
     arch)
-        pkgs='sudo pacman -S --needed cmake ninja gcc pkgconf libdrm qt6-base qt6-declarative'
+        pkgs='sudo pacman -S --needed cmake ninja gcc pkgconf libdrm qt6-base qt6-declarative libx11 libxrandr libxi'
         ;;
     alpine)
         pkgs='sudo apk add cmake ninja g++ pkgconf libdrm-dev qt6-qtbase-dev qt6-qtdeclarative-dev'
+        x11_pkgs='libx11-dev libxrandr-dev libxi-dev'
         ;;
     suse)
-        pkgs='sudo zypper install cmake ninja gcc-c++ pkgconf-pkg-config libdrm-devel qt6-base-devel qt6-declarative-devel'
+        pkgs='sudo zypper install cmake ninja gcc-c++ pkgconf-pkg-config libdrm-devel qt6-base-devel qt6-declarative-devel libX11-devel libXrandr-devel libXi-devel'
         ;;
     *)
         pkgs='# unknown distro — need cmake, a C++ compiler, pkg-config, libdrm, Qt 6 Quick + QuickControls2 + DBus'
@@ -77,9 +78,11 @@ esac
 echo "distro  ${PRETTY_NAME:-$id} ($family)"
 echo "install $pkgs"
 echo
-echo "Plasma Wayland / KWin only. This binary will not rotate GNOME or X11."
+echo "KWin (Plasma Wayland) is the default backend. X11/XFCE needs libX11 + libXrandr + libXi at build time (recommended, not required)."
 if [ "$family" = alpine ]; then
     echo "Alpine native is fine on this machine. For postmarketOS musl from a glibc host, use ./scripts/build-alpine.sh"
+    echo "X11 on Alpine (optional): sudo apk add ${x11_pkgs:-libx11-dev libxrandr-dev libxi-dev}"
+    echo "Missing X11 libs is not a hard fail — the musl image stays KWin-only."
 fi
 
 missing=0
@@ -124,6 +127,11 @@ if command -v pkg-config >/dev/null 2>&1 || command -v pkgconf >/dev/null 2>&1; 
     else
         echo "miss  libdrm  (pkg-config)"
         missing=1
+    fi
+    if $pc --exists x11 && $pc --exists xrandr && $pc --exists xi; then
+        echo "ok    X11     x11 $($pc --modversion x11), xrandr $($pc --modversion xrandr), xi $($pc --modversion xi)"
+    else
+        echo "opt   X11     missing x11/xrandr/xi — KWin-only build; install the X11 -dev packages for XFCE/Xorg"
     fi
 fi
 

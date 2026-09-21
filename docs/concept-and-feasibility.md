@@ -431,17 +431,17 @@ That case is the first backend (KWin/KScreen), the first two-step clinic (pictur
 
 ## Current state (2026-09-21)
 
-TiltBack is a **Plasma 6 Wayland clinic**, not yet a DE-agnostic tool. One C++/QML binary (`tiltback`) does the GUI, `--follow`, `--install-follow`, `--save-home`, and `--report`.
+TiltBack is a **KWin + X11 clinic**. One C++/QML binary (`tiltback`) does the GUI, `--follow`, `--install-follow`, `--save-home`, and `--report`. Runtime pick: `DISPLAY` set and `WAYLAND_DISPLAY` empty → X11; else KWin if the session bus has `org.kde.KWin`; else diagnose-only.
 
 ### What a user can do
 
-- Open a maximized dashboard: Picture, Finger, Pen, Arrow, Home / Follow.
-- Apply Picture **Left** / **Right** (KScreen via one-shot `kscreen-doctor` after `org.kde.KScreen` `/backend` `getConfig`). Builtin outputs are `eDP*`, `DSI*`, `LVDS*`. `kscreen-doctor` printing “not found” is a failure even if it exits 0.
-- Apply Finger / Pen **R=0** / **R=8** via KWin `InputDevice` `orientationDBus` (`Int32` only, no `calibrationMatrix`). Identity is name + VID:PID, never `eventN`. Denied: touchpads, Samsung cover `04e8:a00a`, Wacom `WCOM0028` Mouse.
+- Open a maximized dashboard: Picture, Finger, Pen, Arrow, Home / Follow. Cards show the live backend string (`KScreen` / `KWin` or `RandR` / `XInput CTM`).
+- Apply Picture **None** / **Left** / **Inverted** / **Right**. KWin uses one-shot `kscreen-doctor` after `org.kde.KScreen` `/backend` `getConfig`. X11 uses one-shot `xrandr --rotate` after in-process RandR get. Builtin outputs are `eDP*`, `DSI*`, `LVDS*`.
+- Apply Finger / Pen **R=0 / 1 / 2 / 4 / 8** (`Primary`, `Portrait`, `Landscape`, `InvertedPortrait`, `InvertedLandscape`). KWin writes `orientationDBus`. X11 writes `CTM(T)∘CTM(R)` (or Wacom Rotation on xf86-input-wacom nodes). Identity is name + VID:PID, never `eventN` / xinput id. Denied: touchpads, Samsung cover `04e8:a00a`, Wacom `WCOM0028` Mouse, plus X11 `XTEST` / Virtual core / keyboards / `cros_ec`. Eraser nodes get the pen R.
 - Independent 10-second Keep / Revert per layer. Follow is held off for ~15s (`~/.cache/tiltback/clinic-hold` or `/tmp`) so a clinic write is not restamped away.
-- **Save home** writes `home = (T, R_touch, R_pen)` to `~/.config/tiltback/home.json` (or `/tmp` if home is RO) and decimal `vendor/product` groups in `kcminputrc`.
+- **Save home** writes `home = (T, R_touch, R_pen)` to `~/.config/tiltback/home.json` (or `/tmp` if home is RO). Plasma also writes decimal `vendor/product` groups in `kcminputrc`. X11 is home.json only.
 - **Install/start** drops a systemd `--user` `tiltback-follow.service`. On RO home it uses a runtime drop-in under `/run/user/…` and masks the old Python `tiltback-w620` unit.
-- Follow restamps **R only**. It watches KWin `PropertiesChanged`, `~/.config` / `~/.local/share/kscreen`, the home.json directory, and a 0.4s tick (KWin often zeros `R` without a notify). Reloading `home.json` restamps the new R. The GUI process must not also construct `FollowEngine`.
+- Follow restamps residual only. KWin: `PropertiesChanged` + 0.4s tick. X11: RandR notify / `QScreen` and composed CTM. Reloading `home.json` restamps the new R. The GUI process must not also construct `FollowEngine`. `--follow` uses `QGuiApplication` on X11.
 - Copy report for a bug dump. Packaged icon is `org.tiltback.TiltBack` in hicolor plus a Qt resource; do not set QML `ApplicationWindow.icon` — that property does not exist on this Controls build and the window fails to load.
 
 ### Proven chassis
@@ -450,6 +450,7 @@ TiltBack is a **Plasma 6 Wayland clinic**, not yet a DE-agnostic tool. One C++/Q
 | --- | --- | --- | --- | --- |
 | Galaxy Book W620 (pmOS Plasma 6.6 Wayland) | `eDP-1` 1280×1920 | `RIGHT_UP` (3) | `T=Rotated90`, `R_touch=8`, `R_pen=8` | Device-space 180° at every pose. KWin zeros `R` on every `T` change; follow restamps 8. Cover / mouse stay at 0. |
 | raytrektab RT08WT (pmOS Plasma Wayland) | `DSI-1` 800×1280 | `BOTTOM_UP` (1) | `T=Rotated180`, `R_touch=8`, `R_pen=8` | Wayland arrow **not** inverted. Goodix `0416:038f` is the real touch; Wacom `2D1F:011E` Stylus is the pen. A non-Stylus Wacom node at `R=0` can steal first-touch pick. |
+| Acer Chromebook Tab 10 (Debian 13 XFCE X11) | `DSI-1` 1536×2048 | unavailable (no sysfs DMI) | `T=Normal`, `R_touch=0`, `R_pen=0` | Default pose already correct. Follow writes `CTM(T)` on Elan and Wacom Rotation on `2D1F:0036` stylus/erasers after `xrandr --rotate`. |
 
 See [case-galaxy-book-w620.md](case-galaxy-book-w620.md) and [home-offset-and-follow.md](home-offset-and-follow.md).
 
@@ -468,10 +469,9 @@ On the tablet: `~/.local/bin/tiltback`, desktop file with a full `Exec=` path wh
 
 ### What is not there
 
-- No extracted backend interface. `ClinicModel` talks to KWin/KScreen directly.
-- No GNOME, Phosh, wlroots, or X11 apply path.
-- No software-cursor switch. Arrow is diagnose-only.
-- No udev / hwdb / `video=` export (Phase 7).
+- No GNOME, Phosh, or wlroots apply path.
+- No software-cursor switch. Arrow is diagnose-only (`SWCursor` would need an Xorg restart).
+- No udev / hwdb / `video=` export (Phase 7). Do not write `libinput Calibration Matrix`.
 - No wizard. Phase 5 was implemented, then removed as more confusing than inverted dashboard controls.
 
 `tools/tiltback-w620` and the Python follow recipe remain in the tree as history. Do not run them beside C++ follow.
@@ -519,7 +519,7 @@ Done when Display Configuration’s 15s revert (or a manual pose change) leaves 
 
 **Phase 7 — Export only. Not started.** Draft udev / `video=` / quirk snippet as text the user can copy. Polkit udev apply and kernel-cmdline install stay out.
 
-**Phase 8 — Second backend. Not started.** Same narrow interface: list outputs, get/set `T`, list absolute devices, get/set `R`, “can you force a software cursor?” The original note put Xorg here, then Mutter/wlroots/Hyprland. That fork is the next-steps question below.
+**Phase 8 — Second backend. X11 shipped; Mutter/Phosh not started.** `OrientationBackend` plus `KwinBackend` and `X11Backend`. Same narrow interface: list outputs, get/set `T`, list absolute devices, get/set `R`, follow stamp, pose watch. Arrow apply is still later.
 
 **Skip or defer:** udev as the default residual, IMU/auto-rotate, fake cursors, GTK, PySide6, button/pressure editors, the cover touchpad, community profile service, a second wizard.
 

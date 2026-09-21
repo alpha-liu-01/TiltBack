@@ -7,16 +7,26 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(Qt6 REQUIRED COMPONENTS Quick QuickControls2 DBus)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(LIBDRM REQUIRED libdrm)
+pkg_check_modules(X11 x11 xrandr xi)
 
 qt_standard_project_setup(REQUIRES 6.5)
 
-qt_add_executable(tiltback
+set(tiltback_src
     src/main.cpp
     src/kwininput.h
     src/kwininput.cpp
+    src/backend.h
+    src/backend.cpp
+    src/kwinbackend.h
+    src/kwinbackend.cpp
     src/followengine.h
     src/followengine.cpp
 )
+if(X11_FOUND)
+    list(APPEND tiltback_src src/x11backend.h src/x11backend.cpp)
+endif()
+
+qt_add_executable(tiltback ${tiltback_src})
 
 # pmOS 26.06 is Qt 6.11; Alpine 3.22's Qt is 6.8. Shipping 6.8 qmlcache
 # fails at runtime (V4 data version mismatch). Interpret QML instead.
@@ -46,6 +56,16 @@ target_link_libraries(tiltback PRIVATE
     Qt6::DBus
     ${LIBDRM_LIBRARIES}
 )
+
+if(X11_FOUND)
+    target_compile_definitions(tiltback PRIVATE TILTBACK_X11)
+    target_include_directories(tiltback PRIVATE ${X11_INCLUDE_DIRS})
+    target_compile_options(tiltback PRIVATE ${X11_CFLAGS_OTHER})
+    target_link_libraries(tiltback PRIVATE ${X11_LIBRARIES})
+    message(STATUS "TiltBack: X11 RandR/XInput backend enabled")
+else()
+    message(STATUS "TiltBack: X11 libs not found — KWin-only build")
+endif()
 
 set_source_files_properties(
     data/icons/hicolor/512x512/apps/org.tiltback.TiltBack.png

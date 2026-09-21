@@ -151,6 +151,37 @@ QString vidPid(quint32 vendor, quint32 product)
     return QStringLiteral("%1:%2").arg(hexId(vendor), hexId(product));
 }
 
+QVector<Digitizer> listKwinDigitizers()
+{
+    QVector<Digitizer> out;
+    for (const QString &sys : sysNames()) {
+        const QString path = QStringLiteral("%1/%2").arg(QLatin1String(Prefix), sys);
+        const QVariantMap all = getAll(path);
+        if (all.isEmpty())
+            continue;
+        const QString name = unwrap(all.value(QStringLiteral("name"))).toString();
+        const bool touch = unwrap(all.value(QStringLiteral("touch"))).toBool();
+        const bool tabletTool = unwrap(all.value(QStringLiteral("tabletTool"))).toBool();
+        const bool touchpad = unwrap(all.value(QStringLiteral("touchpad"))).toBool();
+        const quint32 vendor = unwrap(all.value(QStringLiteral("vendor"))).toUInt();
+        const quint32 product = unwrap(all.value(QStringLiteral("product"))).toUInt();
+        if (isDenied(name, touchpad, vendor, product))
+            continue;
+        if (!touch && !tabletTool)
+            continue;
+        Digitizer d;
+        d.name = name;
+        d.vendor = vendor;
+        d.product = product;
+        d.sysName = sys;
+        d.path = path;
+        d.r = unwrap(all.value(QStringLiteral("orientationDBus"))).toInt();
+        d.ok = true;
+        out.append(d);
+    }
+    return out;
+}
+
 Digitizer resolveDigitizer(DigitizerClass kind, const Digitizer *identity)
 {
     Digitizer first;

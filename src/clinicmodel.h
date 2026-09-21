@@ -1,5 +1,6 @@
 #pragma once
 
+#include "backend.h"
 #include "kwininput.h"
 
 #include <QObject>
@@ -37,6 +38,7 @@ class ClinicModel : public QObject
     Q_PROPERTY(QString reportText READ reportText NOTIFY changed)
     Q_PROPERTY(QString homeLine READ homeLine NOTIFY changed)
     Q_PROPERTY(QString persistLine READ persistLine NOTIFY changed)
+    Q_PROPERTY(QString persistHow READ persistHow NOTIFY changed)
     Q_PROPERTY(QString followStatus READ followStatus NOTIFY changed)
 
     Q_PROPERTY(bool pendingPictureRevert READ pendingPictureRevert NOTIFY changed)
@@ -78,6 +80,7 @@ public:
     QString reportText() const { return m_reportText; }
     QString homeLine() const { return m_homeLine; }
     QString persistLine() const { return m_persistLine; }
+    QString persistHow() const { return m_persistHow; }
     QString followStatus() const { return m_followStatus; }
 
     bool pendingPictureRevert() const { return m_picturePending; }
@@ -116,14 +119,11 @@ private:
     void probeDmi();
     void probeDrm();
     void probeOutputTransform();
-    void probeKwinInputs();
+    void probeInputs();
     void buildReport();
     void fillPictureCard();
     void fillFingerCard();
     void fillPenCard();
-    bool ensureKscreenBackend();
-    bool readLiveOutput();
-    bool runDoctor(const QString &output, const QString &kscreen);
     bool anyPending() const;
     void ensureTimer();
     void startPictureCountdown();
@@ -134,14 +134,13 @@ private:
     void stopPenCountdown();
     void onRevertTick();
     bool resolveDigitizer(DigitizerClass kind, Digitizer *out);
-    bool setOrientation(const QString &path, int r, QString *error);
-    int getOrientation(const QString &path, bool *ok = nullptr);
     void applyDigitizer(DigitizerClass kind, int r);
     void warnIfFollowFight(DigitizerClass kind);
     void syncClinicHold();
     void loadHomeState();
     void refreshFollowStatus();
 
+    TiltBack::OrientationBackend *m_backend = nullptr;
     QTimer *m_revertTimer = nullptr;
 
     QString m_dmiVendor;
@@ -160,17 +159,17 @@ private:
     QString m_pictureValue;
     QString m_pictureDetail;
     QString m_pictureSource;
-    QString m_pictureBackend = QStringLiteral("yes (KScreen session)");
+    QString m_pictureBackend = QStringLiteral("no");
 
     QString m_fingerValue;
     QString m_fingerDetail;
     QString m_fingerSource;
-    QString m_fingerBackend = QStringLiteral("yes (KWin session)");
+    QString m_fingerBackend = QStringLiteral("no");
 
     QString m_penValue;
     QString m_penDetail;
     QString m_penSource;
-    QString m_penBackend = QStringLiteral("yes (KWin session)");
+    QString m_penBackend = QStringLiteral("no");
 
     QString m_arrowValue = QStringLiteral("not inverted / not probed");
     QString m_arrowDetail = QStringLiteral("Cursor plane is Phase 6. This chassis has not shown an inverted arrow.");
@@ -180,6 +179,7 @@ private:
     QString m_reportText;
     QString m_homeLine;
     QString m_persistLine;
+    QString m_persistHow;
     QString m_followStatus;
     TiltBack::HomeProfile m_home;
 

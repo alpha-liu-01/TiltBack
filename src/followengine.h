@@ -1,11 +1,11 @@
 #pragma once
 
+#include "backend.h"
 #include "kwininput.h"
 
 #include <QDateTime>
 #include <QObject>
 #include <QString>
-#include <QtDBus/QDBusMessage>
 
 class QFileSystemWatcher;
 class QTimer;
@@ -21,20 +21,19 @@ public:
     int start();
 
 private slots:
-    void onPropertiesChanged(const QDBusMessage &message);
-    void onDeviceChanged();
     void onDirChanged(const QString &path);
     void onDebounce();
-    void onTick();
     void onDelayedStamp();
+    void onPoseChanged();
+    void onDevicesChanged();
 
 private:
     void resolveTargets();
     void schedule(const QString &reason);
     void stamp(const QString &reason);
-    void bindDeviceSignals();
     void reloadHomeIfChanged();
 
+    OrientationBackend *m_backend = nullptr;
     HomeProfile m_home;
     Digitizer m_finger;
     Digitizer m_pen;
@@ -43,7 +42,6 @@ private:
     QDateTime m_homeMtime;
     QFileSystemWatcher *m_watcher = nullptr;
     QTimer *m_debounce = nullptr;
-    QTimer *m_tick = nullptr;
     QTimer *m_delayed = nullptr;
 };
 

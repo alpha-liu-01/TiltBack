@@ -2,6 +2,7 @@
 
 #include <QString>
 #include <QVariant>
+#include <QVector>
 #include <QtGlobal>
 
 namespace TiltBack {
@@ -33,6 +34,7 @@ struct HomeProfile {
 QVariant unwrap(const QVariant &value);
 bool isDenied(const QString &name, bool touchpad, quint32 vendor = 0, quint32 product = 0);
 QString vidPid(quint32 vendor, quint32 product);
+QVector<Digitizer> listKwinDigitizers();
 Digitizer resolveDigitizer(DigitizerClass kind, const Digitizer *identity = nullptr);
 bool setOrientation(const QString &path, int r, QString *error = nullptr);
 int getOrientation(const QString &path, bool *ok = nullptr);
