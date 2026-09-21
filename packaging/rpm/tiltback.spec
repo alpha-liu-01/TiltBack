@@ -103,6 +103,8 @@ fi
 %{_libexecdir}/tiltback/install-greeter.sh
 %{_unitdir}/tiltback-greeter.service
 %{_unitdir}/tiltback-greeter.path
+%{_userunitdir}/tiltback-greeter-follow.service
+%{_userunitdir}/plasma-login-wayland.target.wants/tiltback-greeter-follow.service
 %{_prefix}/lib/systemd/system-preset/80-tiltback.preset
 %{_tmpfilesdir}/tiltback.conf
 

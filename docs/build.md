@@ -95,7 +95,7 @@ On GNOME that local desktop will steal the app menu from a later `/usr` apk. Pre
 
 | Package | Contents | Runtime |
 | --- | --- | --- |
-| `tiltback` | `/usr/bin/tiltback`, desktop + icons, `/usr/libexec/tiltback/install-greeter.sh`, `tiltback-greeter.service` / `.path`, `80-tiltback.preset`, tmpfiles.d | `qt6-qtbase` `qt6-qtdeclarative` `qt6-qtwayland` |
+| `tiltback` | `/usr/bin/tiltback`, desktop + icons, `/usr/libexec/tiltback/install-greeter.sh`, `tiltback-greeter.service` / `.path`, `tiltback-greeter-follow.service` (Plasma Login user unit), `80-tiltback.preset`, tmpfiles.d | `qt6-qtbase` `qt6-qtdeclarative` `qt6-qtwayland` |
 | `tiltback-gnome` | `/usr/libexec/tiltback/rebind-hid.sh`, `tiltback-rebind.path` / `.service`, `81-tiltback-gnome.preset` | pulled by `install_if` |
 
 The main package post-install creates `/run/tiltback` (tmpfiles `1777`) and enables `tiltback-greeter.service` / `.path` (`80-tiltback.preset`) so the login OSK gets the last clinic T/R before the display manager starts. See [greeter-and-boot.md](greeter-and-boot.md). `tiltback --install-greeter` and Save home touch `/run/tiltback/greeter-request`.

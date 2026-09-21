@@ -82,7 +82,7 @@ QML is interpreted (`NO_CACHEGEN`) so an Alpine 3.22 (Qt 6.8) build can load on 
 3. Apply **Finger** and **Pen** until a tap and a stylus contact land on the pixel they appear to belong to.
 4. **Save home**.
 5. **Install follow** in the dashboard (or `tiltback --install-follow`). The GUI process must not also run `--follow`.
-6. **Save home** also copies that tuple into the greeter (GDM / SDDM / Plasma Login Manager) when the `/usr` package is installed. The first unlock is still unfixed; the next logout or reboot should match. See [docs/greeter-and-boot.md](docs/greeter-and-boot.md).
+6. **Save home** also copies that tuple into the greeter (GDM / SDDM / Plasma Login Manager) when the `/usr` package is installed. The first unlock is still unfixed; the next logout or reboot should match. On Plasma Login, picture comes from the copied `kwinoutputconfig.json`; finger and pen need greeter `--follow` because KWin zeros `Orientation` when it applies T. See [docs/greeter-and-boot.md](docs/greeter-and-boot.md).
 
 Other entry points: `tiltback --report`, `tiltback --save-home`. Never `pkill -f tiltback` (it matches SSH).
 

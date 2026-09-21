@@ -4,5 +4,7 @@ usr/share/icons/hicolor/
 usr/libexec/tiltback/install-greeter.sh
 usr/lib/systemd/system/tiltback-greeter.service
 usr/lib/systemd/system/tiltback-greeter.path
+usr/lib/systemd/user/tiltback-greeter-follow.service
+usr/lib/systemd/user/plasma-login-wayland.target.wants/
 usr/lib/systemd/system-preset/80-tiltback.preset
 usr/lib/tmpfiles.d/tiltback.conf

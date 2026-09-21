@@ -101,5 +101,11 @@ install(FILES
             data/systemd/80-tiltback.preset
             data/systemd/81-tiltback-gnome.preset
         DESTINATION lib/systemd/system-preset)
+# Plasma Login Manager greeter is a systemd --user session. KWin zeros
+# digitizer Orientation when it applies the copied T; this unit restamps R.
+install(FILES data/systemd/user/tiltback-greeter-follow.service
+        DESTINATION lib/systemd/user)
+install(FILES data/systemd/user/plasma-login-wayland.target.wants/tiltback-greeter-follow.service
+        DESTINATION lib/systemd/user/plasma-login-wayland.target.wants)
 install(FILES data/tmpfiles.d/tiltback.conf
         DESTINATION lib/tmpfiles.d)

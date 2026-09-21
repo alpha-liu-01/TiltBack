@@ -20,8 +20,8 @@ Probed chassis: Samsung Galaxy Book 10.6 (SM-W620). Kernel DRM `panel-orientatio
 
 | Greeter home | Owner (probed) | Picture | Residual |
 | --- | --- | --- | --- |
-| `/var/lib/plasmalogin` | `plasmalogin` (Fedora 44 Plasma Mobile, `plasmalogin.service`) | `kwinoutputconfig.json` | `kcminputrc` |
-| `/var/lib/sddm` | `sddm` | same | same |
+| `/var/lib/plasmalogin` | `plasmalogin` (Fedora 44 Plasma Mobile, `plasmalogin.service`) | `kwinoutputconfig.json` | `kcminputrc` plus greeter `--follow` |
+| `/var/lib/sddm` | `sddm` | same | same files; no Plasma Login follow hook |
 | `/var/lib/gdm` | directory owner (`gdm`) | `monitors.xml` | udev file if the clinic user has one |
 | `/var/lib/gdm3` | directory owner (`gdm`) | same | same |
 
@@ -29,7 +29,7 @@ On Fedora, copies `chown` the greeter user and `restorecon -F` (`xdm_var_lib_t` 
 
 On the W620 GNOME home (`T=Rotated180`, `R_touch=8`) Mutter composes T onto touch **and** you still need constant R=8. T-only on the greeter leaves the OSK 180° off the keys. R-only can make taps hit an upside-down keyboard. Both are required to type a password.
 
-On Plasma, KWin zeros digitizer `Orientation` on every T change. Copying `kcminputrc` into the greeter user is the analogue of udev R. If greeter KWin applies the copied T *after* reading `kcminputrc`, taps can still miss; that is a follow-up (udev leftover for the greeter), not a greeter `FollowEngine`.
+On Plasma, KWin zeros digitizer `Orientation` on every T change — the same wipe that makes session follow mandatory. Copying `kcminputrc` into `plasmalogin` is not enough: greeter KWin applies the copied `Rotated90` and writes `R=0`. A udev leftover would be overwritten the same way. The installer also copies `home.json` and the package ships `tiltback-greeter-follow.service` (`WantedBy=plasma-login-wayland.target`) so `/usr/bin/tiltback --follow` runs as `plasmalogin` after greeter KWin is on the bus and restamps `orientationDBus`. That is the session clinic on the greeter user, not a second engine.
 
 A `~/.local` install cannot chown the greeter. Use a `/usr` package (or `PREFIX=/usr`) and one `sudo` to enable the units.
 
@@ -63,7 +63,7 @@ Kernel T is a **Plymouth-only** extra (and a nicer default getty / early KMS). I
 
 ## Fedora 44 Plasma Mobile W620 (probed)
 
-`alpha@fedora`, uid 1000, `plasmalogin` enabled. Session home already measured: `T=Rotated90`, `R_touch=8`, `R_pen=8`. Greeter home `/var/lib/plasmalogin` starts empty (`750`, `xdm_var_lib_t`). After `sudo /usr/libexec/tiltback/install-greeter.sh`, expect `.config/kwinoutputconfig.json` and `.config/kcminputrc` owned by `plasmalogin`. Do not reuse the GNOME `Rotated180` / `R=8/2` seed. The Fedora boot logo will stay `RIGHT_UP` until someone exports a `video=` / quirk snippet.
+`alpha@fedora`, uid 1000, `plasmalogin` enabled. Session home already measured: `T=Rotated90`, `R_touch=8`, `R_pen=8`. Greeter home `/var/lib/plasmalogin` starts empty (`750`, `xdm_var_lib_t`). After `sudo /usr/libexec/tiltback/install-greeter.sh`, expect `.config/kwinoutputconfig.json`, `.config/kcminputrc`, and `.config/tiltback/home.json` owned by `plasmalogin`. Picture-only (T copied, R wiped) was probed: OSK picture upright, finger and pen still inverted. The greeter follow unit is the residual path. Do not reuse the GNOME `Rotated180` / `R=8/2` seed. The Fedora boot logo will stay `RIGHT_UP` until someone exports a `video=` / quirk snippet.
 
 ## Related
 

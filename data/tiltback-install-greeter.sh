@@ -52,6 +52,9 @@ install_kwin_greeter() {
 		"$greeter_home/.config/kwinoutputconfig.json" "$owner"
 	copy_as "$user_config/kcminputrc" \
 		"$greeter_home/.config/kcminputrc" "$owner"
+	# Follow in the greeter session reads this after KWin zeros R on T.
+	copy_as "$home_json" \
+		"$greeter_home/.config/tiltback/home.json" "$owner"
 }
 
 install_mutter_greeter() {
