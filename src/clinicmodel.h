@@ -1,5 +1,7 @@
 #pragma once
 
+#include "kwininput.h"
+
 #include <QObject>
 #include <QString>
 #include <QtQml/qqmlregistration.h>
@@ -32,6 +34,9 @@ class ClinicModel : public QObject
     Q_PROPERTY(QString arrowBackend READ arrowBackend NOTIFY changed)
 
     Q_PROPERTY(QString reportText READ reportText NOTIFY changed)
+    Q_PROPERTY(QString homeLine READ homeLine NOTIFY changed)
+    Q_PROPERTY(QString persistLine READ persistLine NOTIFY changed)
+    Q_PROPERTY(QString followStatus READ followStatus NOTIFY changed)
 
     Q_PROPERTY(bool pendingPictureRevert READ pendingPictureRevert NOTIFY changed)
     Q_PROPERTY(int pictureSecondsLeft READ pictureSecondsLeft NOTIFY changed)
@@ -69,6 +74,9 @@ public:
     QString arrowBackend() const { return m_arrowBackend; }
 
     QString reportText() const { return m_reportText; }
+    QString homeLine() const { return m_homeLine; }
+    QString persistLine() const { return m_persistLine; }
+    QString followStatus() const { return m_followStatus; }
 
     bool pendingPictureRevert() const { return m_picturePending; }
     int pictureSecondsLeft() const { return m_pictureSeconds; }
@@ -93,22 +101,15 @@ public:
     Q_INVOKABLE void applyPen(int r);
     Q_INVOKABLE void keepPen();
     Q_INVOKABLE void revertPen();
+    Q_INVOKABLE void saveHome();
+    Q_INVOKABLE void installFollow();
 
 signals:
     void changed();
 
 private:
-    enum class DigitizerClass { Finger, Pen };
-
-    struct Digitizer {
-        QString name;
-        quint32 vendor = 0;
-        quint32 product = 0;
-        QString sysName;
-        QString path;
-        int r = 0;
-        bool ok = false;
-    };
+    using Digitizer = TiltBack::Digitizer;
+    using DigitizerClass = TiltBack::DigitizerClass;
 
     void probeDmi();
     void probeDrm();
@@ -135,6 +136,9 @@ private:
     int getOrientation(const QString &path, bool *ok = nullptr);
     void applyDigitizer(DigitizerClass kind, int r);
     void warnIfFollowFight(DigitizerClass kind);
+    void syncClinicHold();
+    void loadHomeState();
+    void refreshFollowStatus();
 
     QTimer *m_revertTimer = nullptr;
 
@@ -172,6 +176,10 @@ private:
     QString m_arrowBackend = QStringLiteral("no");
 
     QString m_reportText;
+    QString m_homeLine;
+    QString m_persistLine;
+    QString m_followStatus;
+    TiltBack::HomeProfile m_home;
 
     Digitizer m_finger;
     Digitizer m_pen;

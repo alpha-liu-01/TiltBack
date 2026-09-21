@@ -211,6 +211,33 @@ ApplicationWindow {
                 how: clinic.arrowSource
                 backend: clinic.arrowBackend
             }
+            LayerCard {
+                title: qsTr("Home / Follow")
+                value: clinic.homeLine
+                detail: clinic.persistLine + "\n" + clinic.followStatus
+                how: qsTr("home.json + kcminputrc Orientation=; follow restamps R only")
+                backend: qsTr("follow is the lock, not an apply button")
+
+                Row {
+                    spacing: 12
+                    width: parent.width
+
+                    Button {
+                        width: (parent.width - parent.spacing) / 2
+                        height: Math.max(64, Math.round(root.height * 0.08))
+                        text: qsTr("Save home")
+                        font.pixelSize: Math.max(20, Math.round(root.width * 0.024))
+                        onClicked: clinic.saveHome()
+                    }
+                    Button {
+                        width: (parent.width - parent.spacing) / 2
+                        height: Math.max(64, Math.round(root.height * 0.08))
+                        text: qsTr("Install/start")
+                        font.pixelSize: Math.max(20, Math.round(root.width * 0.024))
+                        onClicked: clinic.installFollow()
+                    }
+                }
+            }
 
             Row {
                 spacing: 12

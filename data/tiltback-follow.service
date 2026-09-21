@@ -1,0 +1,15 @@
+[Unit]
+Description=TiltBack follow-output residual
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+# --install-follow rewrites ExecStart to the binary that ran it.
+# emergency_ro stages at /tmp; a writable root uses ~/.local/bin/tiltback.
+ExecStart=/tmp/tiltback --follow
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=graphical-session.target

@@ -1,6 +1,7 @@
 #include "clinicmodel.h"
 
 #include <QClipboard>
+#include <QCoreApplication>
 #include <QDir>
 #include <QFile>
 #include <QGuiApplication>
@@ -68,30 +69,9 @@ QString panelOrientationName(int value)
     }
 }
 
-bool isDenied(const QString &name, bool touchpad)
-{
-    if (touchpad)
-        return true;
-    if (name.contains(QLatin1String("04e8:a00a")))
-        return true;
-    if (name.contains(QLatin1String("WCOM0028:00 2D1F:000C Mouse")))
-        return true;
-    return false;
-}
-
-QVariant unwrap(const QVariant &value)
-{
-    if (value.canConvert<QDBusVariant>())
-        return value.value<QDBusVariant>().variant();
-    return value;
-}
-
-QString vidPid(quint32 vendor, quint32 product)
-{
-    return QStringLiteral("%1:%2")
-        .arg(vendor, 4, 16, QLatin1Char('0'))
-        .arg(product, 4, 16, QLatin1Char('0'));
-}
+using TiltBack::isDenied;
+using TiltBack::unwrap;
+using TiltBack::vidPid;
 
 QString findEdpTransform(const QJsonValue &value, QString *fromName)
 {
@@ -231,6 +211,8 @@ void ClinicModel::refresh()
     probeDrm();
     probeOutputTransform();
     probeKwinInputs();
+    loadHomeState();
+    refreshFollowStatus();
     buildReport();
     emit changed();
 }
@@ -428,7 +410,7 @@ void ClinicModel::probeKwinInputs()
         const quint32 vendor = unwrap(all.value(QStringLiteral("vendor"))).toUInt();
         const quint32 product = unwrap(all.value(QStringLiteral("product"))).toUInt();
         const QString id = vidPid(vendor, product);
-        const bool denied = isDenied(name, touchpad);
+        const bool denied = isDenied(name, touchpad, vendor, product);
 
         if ((touch || tabletTool) && !denied) {
             reportLines.append(QStringLiteral("%1  %2  R=%3 (%4)  sys=%5")
@@ -502,6 +484,9 @@ void ClinicModel::buildReport()
     if (!m_persistedTransform.isEmpty())
         lines << QStringLiteral("T persisted: %1").arg(m_persistedTransform);
     lines << QStringLiteral("Arrow: not inverted / not probed")
+          << m_homeLine
+          << m_persistLine
+          << m_followStatus
           << QStringLiteral("Absolute devices:");
     if (m_reportDevices.isEmpty())
         lines << QStringLiteral("(none)");
@@ -699,6 +684,7 @@ void ClinicModel::startPictureCountdown()
     m_picturePending = true;
     m_pictureSeconds = 10;
     ensureTimer();
+    syncClinicHold();
 }
 
 void ClinicModel::stopPictureCountdown()
@@ -708,6 +694,7 @@ void ClinicModel::stopPictureCountdown()
     m_picturePendingLabel.clear();
     if (!anyPending())
         m_revertTimer->stop();
+    syncClinicHold();
 }
 
 void ClinicModel::startFingerCountdown()
@@ -715,6 +702,7 @@ void ClinicModel::startFingerCountdown()
     m_fingerPending = true;
     m_fingerSeconds = 10;
     ensureTimer();
+    syncClinicHold();
 }
 
 void ClinicModel::stopFingerCountdown()
@@ -724,6 +712,7 @@ void ClinicModel::stopFingerCountdown()
     m_fingerPendingLabel.clear();
     if (!anyPending())
         m_revertTimer->stop();
+    syncClinicHold();
 }
 
 void ClinicModel::startPenCountdown()
@@ -731,6 +720,7 @@ void ClinicModel::startPenCountdown()
     m_penPending = true;
     m_penSeconds = 10;
     ensureTimer();
+    syncClinicHold();
 }
 
 void ClinicModel::stopPenCountdown()
@@ -740,6 +730,7 @@ void ClinicModel::stopPenCountdown()
     m_penPendingLabel.clear();
     if (!anyPending())
         m_revertTimer->stop();
+    syncClinicHold();
 }
 
 void ClinicModel::onRevertTick()
@@ -765,6 +756,7 @@ void ClinicModel::onRevertTick()
     }
     if (!anyPending())
         m_revertTimer->stop();
+    syncClinicHold();
     emit changed();
 }
 
@@ -772,126 +764,23 @@ bool ClinicModel::resolveDigitizer(DigitizerClass kind, Digitizer *out)
 {
     if (!out)
         return false;
-    *out = {};
-    QDBusConnection bus = QDBusConnection::sessionBus();
-    if (!bus.isConnected())
-        return false;
-
-    QDBusInterface mgr(
-        QStringLiteral("org.kde.KWin"),
-        QStringLiteral("/org/kde/KWin/InputDevice"),
-        QStringLiteral("org.freedesktop.DBus.Properties"),
-        bus);
-    const QDBusReply<QDBusVariant> namesReply = mgr.call(
-        QStringLiteral("Get"),
-        QStringLiteral("org.kde.KWin.InputDeviceManager"),
-        QStringLiteral("devicesSysNames"));
-    if (!namesReply.isValid())
-        return false;
-
-    QStringList sysNames;
-    const QVariant namesVar = namesReply.value().variant();
-    if (namesVar.canConvert<QStringList>())
-        sysNames = namesVar.toStringList();
-    else if (namesVar.canConvert<QDBusArgument>())
-        sysNames = qdbus_cast<QStringList>(namesVar.value<QDBusArgument>());
-
-    const Digitizer want = (kind == DigitizerClass::Finger) ? m_finger : m_pen;
-    Digitizer first;
-
-    for (const QString &sys : sysNames) {
-        const QString path = QStringLiteral("/org/kde/KWin/InputDevice/%1").arg(sys);
-        QDBusMessage msg = QDBusMessage::createMethodCall(
-            QStringLiteral("org.kde.KWin"),
-            path,
-            QStringLiteral("org.freedesktop.DBus.Properties"),
-            QStringLiteral("GetAll"));
-        msg << QStringLiteral("org.kde.KWin.InputDevice");
-        const QDBusMessage reply = bus.call(msg);
-        if (reply.type() == QDBusMessage::ErrorMessage || reply.arguments().isEmpty())
-            continue;
-        QVariantMap all;
-        const QVariant firstArg = reply.arguments().at(0);
-        if (firstArg.canConvert<QVariantMap>())
-            all = firstArg.toMap();
-        else if (firstArg.canConvert<QDBusArgument>())
-            all = qdbus_cast<QVariantMap>(firstArg.value<QDBusArgument>());
-        if (all.isEmpty())
-            continue;
-        const QString name = unwrap(all.value(QStringLiteral("name"))).toString();
-        const bool touch = unwrap(all.value(QStringLiteral("touch"))).toBool();
-        const bool tabletTool = unwrap(all.value(QStringLiteral("tabletTool"))).toBool();
-        const bool touchpad = unwrap(all.value(QStringLiteral("touchpad"))).toBool();
-        if (isDenied(name, touchpad))
-            continue;
-        if (kind == DigitizerClass::Finger && !touch)
-            continue;
-        if (kind == DigitizerClass::Pen && !tabletTool)
-            continue;
-
-        Digitizer d;
-        d.name = name;
-        d.vendor = unwrap(all.value(QStringLiteral("vendor"))).toUInt();
-        d.product = unwrap(all.value(QStringLiteral("product"))).toUInt();
-        d.sysName = sys;
-        d.path = path;
-        d.r = unwrap(all.value(QStringLiteral("orientationDBus"))).toInt();
-        d.ok = true;
-
-        if (want.ok && !want.name.isEmpty()
-            && want.name == d.name && want.vendor == d.vendor && want.product == d.product) {
-            *out = d;
-            return true;
-        }
-        if (!first.ok)
-            first = d;
-    }
-    if (first.ok) {
-        *out = first;
-        return true;
-    }
-    return false;
+    const Digitizer *identity = nullptr;
+    if (kind == DigitizerClass::Finger && m_finger.ok)
+        identity = &m_finger;
+    else if (kind == DigitizerClass::Pen && m_pen.ok)
+        identity = &m_pen;
+    *out = TiltBack::resolveDigitizer(kind, identity);
+    return out->ok;
 }
 
 bool ClinicModel::setOrientation(const QString &path, int r, QString *error)
 {
-    QDBusConnection bus = QDBusConnection::sessionBus();
-    QDBusMessage msg = QDBusMessage::createMethodCall(
-        QStringLiteral("org.kde.KWin"),
-        path,
-        QStringLiteral("org.freedesktop.DBus.Properties"),
-        QStringLiteral("Set"));
-    msg << QStringLiteral("org.kde.KWin.InputDevice")
-        << QStringLiteral("orientationDBus")
-        << QVariant::fromValue(QDBusVariant(QVariant::fromValue(qint32(r))));
-    const QDBusMessage reply = bus.call(msg);
-    if (reply.type() == QDBusMessage::ErrorMessage) {
-        if (error)
-            *error = reply.errorMessage();
-        return false;
-    }
-    return true;
+    return TiltBack::setOrientation(path, r, error);
 }
 
 int ClinicModel::getOrientation(const QString &path, bool *ok)
 {
-    QDBusConnection bus = QDBusConnection::sessionBus();
-    QDBusMessage msg = QDBusMessage::createMethodCall(
-        QStringLiteral("org.kde.KWin"),
-        path,
-        QStringLiteral("org.freedesktop.DBus.Properties"),
-        QStringLiteral("Get"));
-    msg << QStringLiteral("org.kde.KWin.InputDevice")
-        << QStringLiteral("orientationDBus");
-    const QDBusMessage reply = bus.call(msg);
-    if (reply.type() == QDBusMessage::ErrorMessage || reply.arguments().isEmpty()) {
-        if (ok)
-            *ok = false;
-        return 0;
-    }
-    if (ok)
-        *ok = true;
-    return unwrap(reply.arguments().at(0)).toInt();
+    return TiltBack::getOrientation(path, ok);
 }
 
 void ClinicModel::applyDigitizer(DigitizerClass kind, int r)
@@ -1010,6 +899,8 @@ void ClinicModel::keepFinger()
     if (!m_fingerPending)
         return;
     stopFingerCountdown();
+    m_fingerError = QStringLiteral("Kept — follow restamps home R");
+    fillFingerCard();
     emit changed();
 }
 
@@ -1018,6 +909,8 @@ void ClinicModel::keepPen()
     if (!m_penPending)
         return;
     stopPenCountdown();
+    m_penError = QStringLiteral("Kept — follow restamps home R");
+    fillPenCard();
     emit changed();
 }
 
@@ -1043,4 +936,98 @@ void ClinicModel::revertPen()
     if (resolveDigitizer(DigitizerClass::Pen, &live))
         setOrientation(live.path, target, &m_penError);
     refresh();
+}
+
+void ClinicModel::saveHome()
+{
+    readLiveOutput();
+    probeKwinInputs();
+    TiltBack::HomeProfile home;
+    home.tHome = m_outputTransform;
+    home.rTouch = m_finger.ok ? m_finger.r : 8;
+    home.rPen = m_pen.ok ? m_pen.r : 8;
+    home.fingerName = m_finger.name;
+    home.fingerVendor = m_finger.vendor;
+    home.fingerProduct = m_finger.product;
+    home.penName = m_pen.name;
+    home.penVendor = m_pen.vendor;
+    home.penProduct = m_pen.product;
+    m_home = home;
+
+    QString homeErr;
+    const bool homeOk = TiltBack::saveHomeFile(home, &homeErr);
+    QString persistErr;
+    const bool persistOk = TiltBack::persistKcminputrc(home, &persistErr);
+    m_homeLine = QStringLiteral("Home  T=%1  R_touch=%2  R_pen=%3")
+                     .arg(home.tHome)
+                     .arg(home.rTouch)
+                     .arg(home.rPen);
+    if (persistOk)
+        m_persistLine = QStringLiteral("persist ok (kcminputrc Orientation=)");
+    else
+        m_persistLine = QStringLiteral("persist failed: %1").arg(persistErr);
+    if (!homeOk)
+        m_persistLine += QStringLiteral(" — home.json: %1").arg(homeErr);
+    else if (TiltBack::homeProfilePath().startsWith(QLatin1String("/tmp")))
+        m_persistLine += QStringLiteral(" — home.json in /tmp");
+    emit changed();
+}
+
+void ClinicModel::installFollow()
+{
+    QString err;
+    if (TiltBack::installFollow(QCoreApplication::applicationFilePath(), &err) != 0)
+        m_followStatus = QStringLiteral("Follow  install failed: %1").arg(err);
+    else
+        refreshFollowStatus();
+    emit changed();
+}
+
+void ClinicModel::syncClinicHold()
+{
+    if (anyPending())
+        TiltBack::writeClinicHold();
+    else
+        TiltBack::clearClinicHold();
+}
+
+void ClinicModel::loadHomeState()
+{
+    const bool haveFile = QFile::exists(TiltBack::homeProfilePath());
+    m_home = TiltBack::loadHome(m_dmiProduct);
+    if (m_home.tHome.isEmpty()) {
+        m_homeLine = QStringLiteral("Home  (none — Save home or W620 DMI seed)");
+        if (m_persistLine.isEmpty())
+            m_persistLine = QStringLiteral("persist not written this session");
+        return;
+    }
+    m_homeLine = QStringLiteral("Home  T=%1  R_touch=%2  R_pen=%3")
+                     .arg(m_home.tHome)
+                     .arg(m_home.rTouch)
+                     .arg(m_home.rPen);
+    if (m_persistLine.isEmpty()) {
+        m_persistLine = haveFile
+            ? QStringLiteral("home.json loaded")
+            : QStringLiteral("W620 DMI seed — Save home to persist");
+    }
+}
+
+void ClinicModel::refreshFollowStatus()
+{
+    auto unitState = [](const QString &unit) {
+        QProcess p;
+        p.start(QStringLiteral("systemctl"),
+                {QStringLiteral("--user"), QStringLiteral("is-active"), unit});
+        if (!p.waitForFinished(3000))
+            return QStringLiteral("unknown");
+        return QString::fromUtf8(p.readAllStandardOutput()).trimmed();
+    };
+    const QString follow = unitState(QStringLiteral("tiltback-follow.service"));
+    const QString w620 = unitState(QStringLiteral("tiltback-w620.service"));
+    if (w620 == QLatin1String("active"))
+        m_followStatus = QStringLiteral("Follow  tiltback-w620.service active (Python) — Install to replace");
+    else if (follow == QLatin1String("active"))
+        m_followStatus = QStringLiteral("Follow  active");
+    else
+        m_followStatus = QStringLiteral("Follow  inactive — Install/start");
 }

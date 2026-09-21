@@ -12,6 +12,10 @@ qt_standard_project_setup(REQUIRES 6.5)
 
 qt_add_executable(tiltback
     src/main.cpp
+    src/kwininput.h
+    src/kwininput.cpp
+    src/followengine.h
+    src/followengine.cpp
 )
 
 # pmOS 26.06 is Qt 6.11; Alpine 3.22's Qt is 6.8. Shipping 6.8 qmlcache
