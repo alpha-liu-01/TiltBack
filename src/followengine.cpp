@@ -54,7 +54,7 @@ FollowEngine::FollowEngine(QObject *parent)
 int FollowEngine::start()
 {
     const QString product = readSysfs(QStringLiteral("/sys/class/dmi/id/product_name"));
-    m_home = loadHome(product);
+    m_home = loadHome(product, m_backend->id() != QLatin1String("gnome"));
     if (m_home.tHome.isEmpty()) {
         logLine(QStringLiteral("follow: no home.json — save home first"));
         return 1;
@@ -157,7 +157,7 @@ void FollowEngine::reloadHomeIfChanged()
     if (!info.exists())
         return;
     const QString product = readSysfs(QStringLiteral("/sys/class/dmi/id/product_name"));
-    HomeProfile next = loadHome(product);
+    HomeProfile next = loadHome(product, m_backend->id() != QLatin1String("gnome"));
     if (next.tHome.isEmpty())
         return;
     const bool same = next.rTouch == m_home.rTouch && next.rPen == m_home.rPen

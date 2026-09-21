@@ -19,6 +19,8 @@ set(tiltback_src
     src/backend.cpp
     src/kwinbackend.h
     src/kwinbackend.cpp
+    src/gnomebackend.h
+    src/gnomebackend.cpp
     src/followengine.h
     src/followengine.cpp
 )
@@ -64,7 +66,7 @@ if(X11_FOUND)
     target_link_libraries(tiltback PRIVATE ${X11_LIBRARIES})
     message(STATUS "TiltBack: X11 RandR/XInput backend enabled")
 else()
-    message(STATUS "TiltBack: X11 libs not found — KWin-only build")
+    message(STATUS "TiltBack: X11 libs not found — KWin + Mutter build")
 endif()
 
 set_source_files_properties(

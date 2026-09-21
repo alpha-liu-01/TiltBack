@@ -41,7 +41,7 @@ int getOrientation(const QString &path, bool *ok = nullptr);
 
 QString homeProfilePath();
 HomeProfile w620Home();
-HomeProfile loadHome(const QString &dmiProduct);
+HomeProfile loadHome(const QString &dmiProduct, bool allowDmiSeed = true);
 bool saveHomeFile(const HomeProfile &home, QString *error);
 bool persistKcminputrc(const HomeProfile &home, QString *error);
 

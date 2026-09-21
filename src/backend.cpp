@@ -1,4 +1,5 @@
 #include "backend.h"
+#include "gnomebackend.h"
 #include "kwinbackend.h"
 
 #ifdef TILTBACK_X11
@@ -84,6 +85,17 @@ bool kwinBusAvailable()
     QDBusInterface iface(QStringLiteral("org.kde.KWin"),
                          QStringLiteral("/org/kde/KWin/InputDevice"),
                          QStringLiteral("org.freedesktop.DBus.Properties"), bus);
+    return iface.isValid();
+}
+
+bool mutterBusAvailable()
+{
+    QDBusConnection bus = QDBusConnection::sessionBus();
+    if (!bus.isConnected())
+        return false;
+    QDBusInterface iface(QStringLiteral("org.gnome.Mutter.DisplayConfig"),
+                         QStringLiteral("/org/gnome/Mutter/DisplayConfig"),
+                         QStringLiteral("org.gnome.Mutter.DisplayConfig"), bus);
     return iface.isValid();
 }
 
@@ -174,7 +186,7 @@ public:
     QString inputBackendLabel() const override { return QStringLiteral("no"); }
     QString pictureSource(const OutputInfo &) const override
     {
-        return QStringLiteral("no session backend (not KWin, not X11)");
+        return QStringLiteral("no session backend (not KWin, not X11, not Mutter)");
     }
     QString inputSource(const Digitizer &) const override
     {
@@ -226,6 +238,8 @@ OrientationBackend *createBackend(QObject *parent)
 #endif
     if (kwinBusAvailable())
         return new KwinBackend(parent);
+    if (mutterBusAvailable())
+        return new GnomeBackend(parent);
     return new NullBackend(parent);
 }
 

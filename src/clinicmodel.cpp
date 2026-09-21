@@ -124,8 +124,8 @@ ClinicModel::ClinicModel(QObject *parent)
     m_revertTimer->setInterval(1000);
     connect(m_revertTimer, &QTimer::timeout, this, &ClinicModel::onRevertTick);
     m_pictureBackend = m_backend->pictureBackendLabel();
-    m_fingerBackend = m_backend->inputBackendLabel();
-    m_penBackend = m_backend->inputBackendLabel();
+    m_fingerBackend = m_backend->inputBackendLabelFor(TiltBack::DigitizerClass::Finger);
+    m_penBackend = m_backend->inputBackendLabelFor(TiltBack::DigitizerClass::Pen);
     m_persistHow = m_backend->persistHow();
     if (m_backend->id() == QLatin1String("x11")) {
         m_arrowDetail = QStringLiteral(
@@ -281,18 +281,17 @@ void ClinicModel::probeInputs()
     m_penValue = QStringLiteral("no stylus");
     m_penDetail.clear();
     m_reportDevices.clear();
-    m_fingerBackend = m_backend->inputBackendLabel();
-    m_penBackend = m_backend->inputBackendLabel();
+    m_fingerBackend = m_backend->inputBackendLabelFor(DigitizerClass::Finger);
+    m_penBackend = m_backend->inputBackendLabelFor(DigitizerClass::Pen);
 
-    if (!m_backend->canChangeInput()) {
+    const QVector<TiltBack::Digitizer> all = m_backend->listDigitizers();
+    if (all.isEmpty() && !m_backend->canChangeInput()) {
         m_fingerValue = QStringLiteral("backend cannot change");
         m_penValue = QStringLiteral("backend cannot change");
         m_fingerSource = m_backend->inputSource({});
         m_penSource = m_fingerSource;
         return;
     }
-
-    const QVector<TiltBack::Digitizer> all = m_backend->listDigitizers();
     QStringList reportLines;
     for (const TiltBack::Digitizer &d : all) {
         reportLines.append(QStringLiteral("%1  %2  R=%3 (%4)  sys=%5")
@@ -425,8 +424,15 @@ void ClinicModel::keepPicture()
 {
     if (!m_picturePending)
         return;
+    QString err;
+    m_backend->commitOutput(&err);
     stopPictureCountdown();
-    emit changed();
+    refresh();
+    if (!err.isEmpty()) {
+        m_pictureError = err;
+        fillPictureCard();
+        emit changed();
+    }
 }
 
 void ClinicModel::revertPicture()
@@ -780,7 +786,7 @@ void ClinicModel::syncClinicHold()
 void ClinicModel::loadHomeState()
 {
     const bool haveFile = QFile::exists(TiltBack::homeProfilePath());
-    m_home = TiltBack::loadHome(m_dmiProduct);
+    m_home = TiltBack::loadHome(m_dmiProduct, m_backend->id() != QLatin1String("gnome"));
     m_persistHow = m_backend->persistHow();
     if (m_home.tHome.isEmpty()) {
         m_homeLine = QStringLiteral("Home  (none — Save home first)");

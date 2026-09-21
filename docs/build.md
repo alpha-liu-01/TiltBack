@@ -1,6 +1,6 @@
 # Building TiltBack
 
-KWin (Plasma Wayland) is the default backend. An X11 RandR + XInput backend is compiled when `libx11`, `libxrandr`, and `libxi` are present. Missing those packages is not a hard fail: Alpine musl / a Wayland-only host still builds KWin-only. The binary will not rotate GNOME or Phosh.
+KWin (Plasma Wayland) is the first pick when that session bus is present. Mutter / GNOME Wayland is always compiled (session bus `org.gnome.Mutter.DisplayConfig`). An X11 RandR + XInput backend is compiled when `libx11`, `libxrandr`, and `libxi` are present. Missing those packages is not a hard fail: Alpine musl / a Wayland-only host still builds KWin + Mutter. Phosh/phoc is not a backend.
 
 Two host paths. Do not mix their outputs: a glibc binary will not run on postmarketOS musl, and the Alpine musl binary is for pmOS.
 
@@ -23,7 +23,7 @@ QML is interpreted (`NO_CACHEGEN`). Alpine 3.22 ships Qt 6.8; postmarketOS 26.06
 | Alpine (native) | `sudo apk add cmake ninja g++ pkgconf libdrm-dev qt6-qtbase-dev qt6-qtdeclarative-dev` — X11 optional: `libx11-dev libxrandr-dev libxi-dev` |
 | openSUSE | `sudo zypper install cmake ninja gcc-c++ pkgconf-pkg-config libdrm-devel qt6-base-devel qt6-declarative-devel libX11-devel libXrandr-devel libXi-devel` |
 
-X11 session packages are recommended so CMake defines `TILTBACK_X11`. A Wayland-only or Alpine musl build without them still produces a KWin clinic.
+X11 session packages are recommended so CMake defines `TILTBACK_X11`. A Wayland-only or Alpine musl build without them still produces a KWin + Mutter clinic.
 
 Ninja is preferred. Without it, `./scripts/build.sh` uses Unix Makefiles.
 
@@ -41,7 +41,7 @@ Default prefix is `~/.local` (no root). `PREFIX` overrides it.
 
 If `PREFIX/bin` is not on `PATH`, the installed desktop file gets an absolute `Exec=`. Launch from the Plasma app menu or:
 
-Plasma Wayland:
+Plasma or GNOME Wayland:
 
 ```sh
 export XDG_RUNTIME_DIR=/run/user/$(id -u)

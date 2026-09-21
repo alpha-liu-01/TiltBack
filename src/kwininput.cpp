@@ -293,7 +293,7 @@ HomeProfile w620Home()
     return h;
 }
 
-HomeProfile loadHome(const QString &dmiProduct)
+HomeProfile loadHome(const QString &dmiProduct, bool allowDmiSeed)
 {
     const QString path = homeProfilePath();
     QFile f(path);
@@ -314,7 +314,7 @@ HomeProfile loadHome(const QString &dmiProduct)
         if (!h.tHome.isEmpty())
             return h;
     }
-    if (dmiProduct.contains(QLatin1String("Galaxy Book 10.6")))
+    if (allowDmiSeed && dmiProduct.contains(QLatin1String("Galaxy Book 10.6")))
         return w620Home();
     return {};
 }

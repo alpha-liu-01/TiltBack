@@ -46,6 +46,16 @@ public:
 
     virtual void watchPose() = 0;
     virtual bool canSoftwareCursor() const { return false; }
+    virtual bool commitOutput(QString *error)
+    {
+        Q_UNUSED(error);
+        return true;
+    }
+    virtual QString inputBackendLabelFor(DigitizerClass kind) const
+    {
+        Q_UNUSED(kind);
+        return inputBackendLabel();
+    }
 
 signals:
     void poseChanged();
@@ -54,6 +64,7 @@ signals:
 
 bool sessionLooksX11();
 bool kwinBusAvailable();
+bool mutterBusAvailable();
 QString normalizeKscreen(const QString &requested);
 QString kwinNameFromKscreen(const QString &kscreen);
 bool isBuiltinOutput(const QString &name);
