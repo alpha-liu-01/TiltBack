@@ -19,7 +19,7 @@ ApplicationWindow {
         height: root.cornerSize
         color: "#2d4a6f"
         radius: 12
-        z: 2
+        z: 20
 
         property alias mark: label.text
 
@@ -37,6 +37,8 @@ ApplicationWindow {
         required property string detail
         required property string how
         required property string backend
+
+        default property alias extra: extraCol.data
 
         width: list.width
         implicitHeight: col.implicitHeight + 32
@@ -88,6 +90,12 @@ ApplicationWindow {
                 font.pixelSize: Math.max(16, Math.round(root.width * 0.018))
                 wrapMode: Text.WordWrap
             }
+
+            Column {
+                id: extraCol
+                width: parent.width
+                spacing: 8
+            }
         }
     }
 
@@ -121,6 +129,26 @@ ApplicationWindow {
                 detail: clinic.pictureDetail
                 how: clinic.pictureSource
                 backend: clinic.pictureBackend
+
+                Row {
+                    spacing: 12
+                    width: parent.width
+
+                    Button {
+                        width: (parent.width - parent.spacing) / 2
+                        height: Math.max(64, Math.round(root.height * 0.08))
+                        text: qsTr("Left")
+                        font.pixelSize: Math.max(20, Math.round(root.width * 0.024))
+                        onClicked: clinic.applyPicture("left")
+                    }
+                    Button {
+                        width: (parent.width - parent.spacing) / 2
+                        height: Math.max(64, Math.round(root.height * 0.08))
+                        text: qsTr("Right")
+                        font.pixelSize: Math.max(20, Math.round(root.width * 0.024))
+                        onClicked: clinic.applyPicture("right")
+                    }
+                }
             }
             LayerCard {
                 title: qsTr("Finger")
@@ -161,6 +189,66 @@ ApplicationWindow {
                     text: qsTr("Copy report")
                     font.pixelSize: Math.max(20, Math.round(root.width * 0.024))
                     onClicked: clinic.copyReport()
+                }
+            }
+        }
+    }
+
+    Rectangle {
+        visible: clinic.pendingRevert
+        z: 10
+        anchors.fill: parent
+        anchors.margins: root.cornerSize + 8
+        color: "#e6111111"
+        radius: 20
+        border.color: "#8ec8ff"
+        border.width: 2
+
+        Column {
+            anchors.centerIn: parent
+            width: parent.width - 32
+            spacing: 16
+
+            Label {
+                width: parent.width
+                horizontalAlignment: Text.AlignHCenter
+                text: qsTr("Keep this picture?")
+                color: "#f2f2f2"
+                font.pixelSize: Math.max(28, Math.round(root.width * 0.04))
+                wrapMode: Text.WordWrap
+            }
+            Label {
+                width: parent.width
+                horizontalAlignment: Text.AlignHCenter
+                text: String(clinic.revertSecondsLeft)
+                color: "#8ec8ff"
+                font.pixelSize: Math.max(64, Math.round(root.width * 0.12))
+            }
+            Label {
+                width: parent.width
+                horizontalAlignment: Text.AlignHCenter
+                text: clinic.pendingTransform
+                color: "#d0d0d0"
+                font.pixelSize: Math.max(22, Math.round(root.width * 0.028))
+                wrapMode: Text.WordWrap
+            }
+            Row {
+                spacing: 12
+                width: parent.width
+
+                Button {
+                    width: (parent.width - parent.spacing) / 2
+                    height: Math.max(72, Math.round(root.height * 0.1))
+                    text: qsTr("Keep")
+                    font.pixelSize: Math.max(22, Math.round(root.width * 0.028))
+                    onClicked: clinic.keepPicture()
+                }
+                Button {
+                    width: (parent.width - parent.spacing) / 2
+                    height: Math.max(72, Math.round(root.height * 0.1))
+                    text: qsTr("Revert")
+                    font.pixelSize: Math.max(22, Math.round(root.width * 0.028))
+                    onClicked: clinic.revertPicture()
                 }
             }
         }

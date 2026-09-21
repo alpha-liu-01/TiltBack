@@ -4,6 +4,8 @@
 #include <QString>
 #include <QtQml/qqmlregistration.h>
 
+class QTimer;
+
 class ClinicModel : public QObject
 {
     Q_OBJECT
@@ -31,6 +33,10 @@ class ClinicModel : public QObject
 
     Q_PROPERTY(QString reportText READ reportText NOTIFY changed)
 
+    Q_PROPERTY(bool pendingRevert READ pendingRevert NOTIFY changed)
+    Q_PROPERTY(int revertSecondsLeft READ revertSecondsLeft NOTIFY changed)
+    Q_PROPERTY(QString pendingTransform READ pendingTransform NOTIFY changed)
+
 public:
     explicit ClinicModel(QObject *parent = nullptr);
 
@@ -56,8 +62,15 @@ public:
 
     QString reportText() const { return m_reportText; }
 
+    bool pendingRevert() const { return m_pendingRevert; }
+    int revertSecondsLeft() const { return m_revertSecondsLeft; }
+    QString pendingTransform() const { return m_pendingTransform; }
+
     Q_INVOKABLE void refresh();
     Q_INVOKABLE void copyReport();
+    Q_INVOKABLE void applyPicture(const QString &kscreen);
+    Q_INVOKABLE void keepPicture();
+    Q_INVOKABLE void revertPicture();
 
 signals:
     void changed();
@@ -68,18 +81,31 @@ private:
     void probeOutputTransform();
     void probeKwinInputs();
     void buildReport();
+    void fillPictureCard();
+    bool ensureKscreenBackend();
+    bool readLiveOutput();
+    bool runDoctor(const QString &output, const QString &kscreen);
+    void startCountdown();
+    void stopCountdown();
+    void onRevertTick();
+
+    QTimer *m_revertTimer = nullptr;
 
     QString m_dmiVendor;
     QString m_dmiProduct;
     QString m_dmiBoard;
     QString m_panelOrientation;
     QString m_outputTransform;
+    QString m_persistedTransform;
+    QString m_outputName;
+    QString m_liveKscreen;
+    QString m_pictureError;
     QString m_reportDevices;
 
     QString m_pictureValue;
     QString m_pictureDetail;
     QString m_pictureSource;
-    QString m_pictureBackend = QStringLiteral("later (Phase 2)");
+    QString m_pictureBackend = QStringLiteral("yes (KScreen session)");
 
     QString m_fingerValue;
     QString m_fingerDetail;
@@ -97,4 +123,9 @@ private:
     QString m_arrowBackend = QStringLiteral("no");
 
     QString m_reportText;
+
+    bool m_pendingRevert = false;
+    int m_revertSecondsLeft = 0;
+    QString m_pendingTransform;
+    QString m_revertKscreen;
 };
