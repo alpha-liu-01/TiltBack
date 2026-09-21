@@ -111,14 +111,16 @@ The packaged path watches `/run/tiltback/rebind-request` (world-writable after t
 - rename `~/.local/bin/tiltback` to `tiltback.pre-apk`
 - rewrite `~/.config/systemd/user/tiltback-follow.service` `ExecStart` to `/usr/bin/tiltback`
 
-Other distros can do the same split:
+Every family ships the same helper in `tiltback-gnome`: `/usr/libexec/tiltback/rebind-hid.sh`, `tiltback-rebind.path` / `.service`, `80-tiltback.preset`, and tmpfiles.d. Post-install creates `/run/tiltback` and enables the path unit so a residual apply does not prompt for a password. The main package also clears a leftover `~/.local` clinic desktop / binary (renamed `tiltback.pre-apk` on Alpine, `tiltback.pre-pkg` elsewhere) and rewrites follow `ExecStart` to `/usr/bin/tiltback`.
 
-| Family | How the GNOME helper attaches | Enable the path unit |
-| --- | --- | --- |
-| Alpine / pmOS apk | `install_if` on `gnome-shell` + `systemd` | `tiltback-gnome.post-install` |
-| Debian / Ubuntu | `tiltback-gnome` with `Recommends:` / `Enhances: gnome-shell` | `packaging/debian/tiltback-gnome.postinst` (`deb-systemd-helper`) |
-| Fedora / openSUSE | `%package gnome` + `Supplements: (tiltback and gnome-shell)` | `%post gnome` + `%systemd_post` |
-| Arch | `optdepends=('gnome-shell: Mutter HID rebind')` | `.install` `post_install()` |
+| Family | How the GNOME helper attaches | Enable the path unit | Build |
+| --- | --- | --- | --- |
+| Alpine / pmOS apk | `install_if` on `gnome-shell` + `systemd` | `tiltback-gnome.post-install` | `./scripts/build-apk.sh` |
+| Debian / Ubuntu | `tiltback-gnome` (`Suggests:` from `tiltback`; `Enhances: gnome-shell`) | `packaging/debian/tiltback-gnome.postinst` | copy `packaging/debian` to `debian/`, then `dpkg-buildpackage -us -uc` |
+| Fedora / openSUSE | `%package gnome` + `Supplements: (tiltback and gnome-shell)` | `%post gnome` + `%systemd_post` | tarball + `rpmbuild -ba packaging/rpm/tiltback.spec` |
+| Arch | `optdepends=('tiltback-gnome: …')` on `tiltback` | `packaging/arch/tiltback.install` | `cd packaging/arch && makepkg` |
+
+On GNOME, install **both** `tiltback` and `tiltback-gnome`. Alpine pulls the helper via `install_if`. Fedora/openSUSE may pull it via `Supplements`. Debian and Arch do not: `sudo apt install tiltback tiltback-gnome` or `pacman -U tiltback-*.pkg.tar.zst tiltback-gnome-*.pkg.tar.zst`.
 
 The udev symlink (`/etc/udev/rules.d/61-tiltback.rules` → `~/.config/tiltback/61-tiltback.rules`) is still per-user and is not created by the package: the package does not know which home to point at. The clinic prints that `ln -sf` if the link is missing.
 

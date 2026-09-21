@@ -46,7 +46,7 @@ The Plasma W620 seed is not applied on GNOME. The same DMI can need a different 
 
 ## Build and install
 
-See [docs/build.md](docs/build.md) for host packages, prefixes, follow, and Alpine / postmarketOS packaging.
+See [docs/build.md](docs/build.md) for host packages, prefixes, follow, and distro packaging (`tiltback` + `tiltback-gnome`).
 
 On the machine that will run TiltBack:
 
@@ -65,7 +65,7 @@ Cross-building for postmarketOS from a glibc PC:
 sudo apk add --allow-untrusted ./tiltback-*.apk ./tiltback-gnome-*.apk
 ```
 
-`tiltback-gnome` is pulled automatically when `gnome-shell` and `systemd` are present. After an apk install, use `/usr/bin/tiltback` (or the GNOME application menu). Close an already-open window and launch again; a leftover `~/.local` desktop file wins over the packaged one.
+On GNOME, install `tiltback-gnome` as well. That package is the passwordless HID rebind (`tiltback-rebind.path` → `/usr/libexec/tiltback/rebind-hid.sh`). Alpine and Fedora/openSUSE can pull it automatically when GNOME is present; Debian and Arch need the second package named explicitly. After a packaged install, use `/usr/bin/tiltback` (or the application menu). Close an already-open window and launch again; a leftover `~/.local` desktop file wins over the packaged one.
 
 QML is interpreted (`NO_CACHEGEN`) so an Alpine 3.22 (Qt 6.8) build can load on postmarketOS 26.06 (Qt 6.11).
 

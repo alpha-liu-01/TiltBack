@@ -1,0 +1,44 @@
+# Leftover clinic desktop under ~/.local wins over /usr/share and
+# launches ~/.local/bin/tiltback, which pkexecs the user rebind script.
+_leftover_clinic() {
+	for f in /home/*/.local/share/applications/org.tiltback.TiltBack.desktop; do
+		[ -f "$f" ] || continue
+		if grep -q '\.local/bin/tiltback' "$f"; then
+			rm -f "$f"
+		fi
+	done
+	for b in /home/*/.local/bin/tiltback; do
+		[ -x "$b" ] || continue
+		mv "$b" "$b.pre-pkg" 2>/dev/null || true
+	done
+	for u in /home/*/.config/systemd/user/tiltback-follow.service; do
+		[ -f "$u" ] || continue
+		sed -i 's|/home/[^/]*/.local/bin/tiltback|/usr/bin/tiltback|g' "$u" 2>/dev/null || true
+	done
+}
+
+_enable_rebind() {
+	# Only when tiltback-gnome dropped the path unit.
+	if [ -f /usr/lib/systemd/system/tiltback-rebind.path ] && [ -d /run/systemd/system ]; then
+		systemd-tmpfiles --create /usr/lib/tmpfiles.d/tiltback.conf 2>/dev/null || true
+		systemctl daemon-reload 2>/dev/null || true
+		systemctl enable --now tiltback-rebind.path 2>/dev/null || true
+	fi
+}
+
+post_install() {
+	_leftover_clinic
+	_enable_rebind
+}
+
+post_upgrade() {
+	_leftover_clinic
+	_enable_rebind
+}
+
+post_remove() {
+	if [ ! -f /usr/lib/systemd/system/tiltback-rebind.path ] && [ -d /run/systemd/system ]; then
+		systemctl disable --now tiltback-rebind.path 2>/dev/null || true
+		systemctl daemon-reload 2>/dev/null || true
+	fi
+}

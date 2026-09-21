@@ -11,6 +11,7 @@ Homepage: https://github.com/alpha-liu-01/TiltBack
 Package: tiltback
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}
+Suggests: tiltback-gnome
 Description: Tablet orientation clinic
  Qt Quick clinic for picture transform and digitizer residuals.
  Ships /usr/share/icons/hicolor/*/apps/org.tiltback.TiltBack.png
@@ -18,10 +19,11 @@ Description: Tablet orientation clinic
 
 Package: tiltback-gnome
 Architecture: all
-Depends: tiltback (= ${binary:Version}), ${misc:Depends}
+Depends: tiltback (= ${binary:Version}), systemd, ${misc:Depends}
 Recommends: gnome-shell
 Enhances: gnome-shell
 Description: GNOME/Mutter HID rebind helper for TiltBack
- Enables tiltback-rebind.path so follow can reopen evdev after a
- udev calibration write. Pulled on GNOME the same way Alpine
- install_if pulls tiltback-gnome when gnome-shell is present.
+ Ships /usr/libexec/tiltback/rebind-hid.sh and enables
+ tiltback-rebind.path so follow can reopen evdev after a udev
+ calibration write without a password prompt. Same helper as
+ Alpine tiltback-gnome. Install this package on GNOME.

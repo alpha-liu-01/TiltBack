@@ -1,0 +1,55 @@
+# Maintainer: alpha-liu-01 <116528196+alpha-liu-01@users.noreply.github.com>
+# Build from this directory against the parent repository:
+#   cd packaging/arch && makepkg
+pkgbase=tiltback
+pkgname=(tiltback tiltback-gnome)
+pkgver=0.0.0
+pkgrel=1
+pkgdesc="Tablet orientation clinic"
+arch=('x86_64' 'aarch64')
+url="https://github.com/alpha-liu-01/TiltBack"
+license=('GPL-3.0-or-later')
+makedepends=(
+	cmake
+	ninja
+	pkgconf
+	libdrm
+	qt6-base
+	qt6-declarative
+	libx11
+	libxrandr
+	libxi
+)
+install=tiltback.install
+
+_repodir="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+
+build() {
+	cmake -S "$_repodir" -B build -G Ninja \
+		-DCMAKE_BUILD_TYPE=Release \
+		-DCMAKE_INSTALL_PREFIX=/usr
+	cmake --build build
+}
+
+package_tiltback() {
+	pkgdesc="Tablet orientation clinic"
+	depends=(qt6-base qt6-declarative qt6-wayland)
+	optdepends=('tiltback-gnome: passwordless Mutter HID rebind on GNOME')
+
+	DESTDIR="$pkgdir" cmake --install build
+	rm -rf "$pkgdir/usr/libexec/tiltback"
+	rm -f "$pkgdir/usr/lib/systemd/system/tiltback-rebind.service"
+	rm -f "$pkgdir/usr/lib/systemd/system/tiltback-rebind.path"
+	rm -f "$pkgdir/usr/lib/systemd/system-preset/80-tiltback.preset"
+	rm -f "$pkgdir/usr/lib/tmpfiles.d/tiltback.conf"
+	install -Dm644 "$_repodir/LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}
+
+package_tiltback-gnome() {
+	pkgdesc="GNOME/Mutter HID rebind helper for TiltBack"
+	depends=("tiltback=$pkgver-$pkgrel" systemd)
+	optdepends=('gnome-shell: Mutter session that needs the leftover rebind')
+
+	DESTDIR="$pkgdir" cmake --install build
+	rm -rf "$pkgdir/usr/bin" "$pkgdir/usr/share"
+}

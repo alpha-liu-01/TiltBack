@@ -1,0 +1,5 @@
+tiltback (0.0.0) UNRELEASED; urgency=medium
+
+  * Initial packaging. tiltback-gnome ships the HID rebind path unit.
+
+ -- alpha-liu-01 <116528196+alpha-liu-01@users.noreply.github.com>  Mon, 21 Sep 2026 00:00:00 +0000
