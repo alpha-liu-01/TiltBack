@@ -1,0 +1,6 @@
+#!/bin/sh
+if [ -d /run/systemd/system ]; then
+	systemctl disable --now tiltback-rebind.path 2>/dev/null || true
+	systemctl daemon-reload 2>/dev/null || true
+fi
+exit 0

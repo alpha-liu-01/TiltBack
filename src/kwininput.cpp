@@ -392,6 +392,10 @@ bool clinicHoldActive()
 
 int installFollow(const QString &binaryPath, QString *error)
 {
+    QString resolved = binaryPath;
+    const QString packaged = QStringLiteral("/usr/bin/tiltback");
+    if (QFileInfo::exists(packaged) && QFileInfo(packaged).isExecutable())
+        resolved = packaged;
     const QString persistentDir = QDir::home().filePath(QStringLiteral(".config/systemd/user"));
     QString runtimeDir = QStandardPaths::writableLocation(QStandardPaths::RuntimeLocation);
     if (runtimeDir.isEmpty())
@@ -413,12 +417,12 @@ int installFollow(const QString &binaryPath, QString *error)
         "\n"
         "[Install]\n"
         "WantedBy=graphical-session.target\n")
-                             .arg(binaryPath);
+                             .arg(resolved);
     const QString dropBody = QStringLiteral(
                                  "[Service]\n"
                                  "ExecStart=\n"
                                  "ExecStart=%1 --follow\n")
-                                 .arg(binaryPath);
+                                 .arg(resolved);
 
     const QString persistentUnit = persistentDir + QStringLiteral("/tiltback-follow.service");
     bool wrotePersistent = false;

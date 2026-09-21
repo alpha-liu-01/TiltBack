@@ -76,8 +76,23 @@ qt_add_resources(tiltback "app_icon"
     PREFIX "/icons"
     FILES data/icons/hicolor/512x512/apps/org.tiltback.TiltBack.png)
 
-install(TARGETS tiltback RUNTIME DESTINATION bin)
+include(GNUInstallDirs)
+
+install(TARGETS tiltback RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 install(FILES data/org.tiltback.TiltBack.desktop
-        DESTINATION share/applications)
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
 install(DIRECTORY data/icons/hicolor
-        DESTINATION share/icons)
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/icons)
+# GNOME leftover: Mutter does not reopen evdev after a udev matrix write.
+# Distro packages enable tiltback-rebind.path when gnome-shell is present.
+install(PROGRAMS data/tiltback-rebind-hid.sh
+        DESTINATION ${CMAKE_INSTALL_LIBEXECDIR}/tiltback
+        RENAME rebind-hid.sh)
+install(FILES
+            data/systemd/tiltback-rebind.service
+            data/systemd/tiltback-rebind.path
+        DESTINATION lib/systemd/system)
+install(FILES data/systemd/80-tiltback.preset
+        DESTINATION lib/systemd/system-preset)
+install(FILES data/tmpfiles.d/tiltback.conf
+        DESTINATION lib/tmpfiles.d)

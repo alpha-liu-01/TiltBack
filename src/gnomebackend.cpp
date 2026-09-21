@@ -523,14 +523,40 @@ bool writeUdevRuleMap(const QMap<QString, QString> &rules, QString *error)
     return true;
 }
 
+QString packagedRebindScript()
+{
+    const QStringList candidates = {
+        QStringLiteral("/usr/libexec/tiltback/rebind-hid.sh"),
+        QStringLiteral("/usr/lib/tiltback/rebind-hid.sh"),
+    };
+    for (const QString &p : candidates) {
+        if (QFileInfo::exists(p))
+            return p;
+    }
+    return {};
+}
+
 QString rebindScriptPath()
 {
+    const QString packaged = packagedRebindScript();
+    if (!packaged.isEmpty())
+        return packaged;
     return QDir::home().filePath(QStringLiteral(".config/tiltback/rebind-hid.sh"));
 }
 
-QString rebindStampPath()
+QString userRebindStampPath()
 {
     return QDir::home().filePath(QStringLiteral(".config/tiltback/last-rebind-done"));
+}
+
+QString packagedRebindStampPath()
+{
+    return QStringLiteral("/run/tiltback/last-rebind-done");
+}
+
+QString rebindRequestPath()
+{
+    return QStringLiteral("/run/tiltback/rebind-request");
 }
 
 QByteArray currentRulesStamp()
@@ -543,15 +569,37 @@ QByteArray currentRulesStamp()
 
 bool compositorPickedCurrentRules()
 {
-    QFile f(rebindStampPath());
-    if (!f.open(QIODevice::ReadOnly))
+    const QByteArray want = currentRulesStamp();
+    if (want.isEmpty())
         return false;
-    return f.readAll().trimmed() == currentRulesStamp();
+    const QStringList stamps = {packagedRebindStampPath(), userRebindStampPath()};
+    for (const QString &path : stamps) {
+        QFile f(path);
+        if (f.open(QIODevice::ReadOnly) && f.readAll().trimmed() == want)
+            return true;
+    }
+    return false;
+}
+
+bool requestPackagedRebind()
+{
+    QDir().mkpath(QStringLiteral("/run/tiltback"));
+    QFile f(rebindRequestPath());
+    if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text))
+        return false;
+    f.write(currentRulesStamp());
+    f.write("\n");
+    return true;
+}
+
+QString userRebindScriptPath()
+{
+    return QDir::home().filePath(QStringLiteral(".config/tiltback/rebind-hid.sh"));
 }
 
 bool writeRebindScript(QString *error)
 {
-    const QString path = rebindScriptPath();
+    const QString path = userRebindScriptPath();
     QDir().mkpath(QFileInfo(path).absolutePath());
     const QString body = QStringLiteral(
         "#!/bin/sh\n"
@@ -576,7 +624,7 @@ bool writeRebindScript(QString *error)
         "done\n"
         "[ \"$rebound\" -gt 0 ]\n"
         "sha256sum \"$RULES\" | awk '{print $1}' > \"$STAMP\"\n")
-                             .arg(userUdevRulesPath(), rebindStampPath());
+                             .arg(userUdevRulesPath(), userRebindStampPath());
     QFile f(path);
     if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) {
         if (error)
@@ -635,25 +683,51 @@ bool writeRebindUnits()
 
 bool rebindPathInstalled()
 {
-    return QFileInfo::exists(QStringLiteral("/etc/systemd/system/tiltback-rebind.path"));
+    const QStringList units = {
+        QStringLiteral("/usr/lib/systemd/system/tiltback-rebind.path"),
+        QStringLiteral("/lib/systemd/system/tiltback-rebind.path"),
+        QStringLiteral("/etc/systemd/system/tiltback-rebind.path"),
+    };
+    for (const QString &p : units) {
+        if (QFileInfo::exists(p))
+            return true;
+    }
+    return false;
 }
+
+bool udevRuleInstalled();
 
 QString udevInstallHint()
 {
-    return QStringLiteral(
-               "udev updated the property, but Mutter still has the old evdev fds. "
-               "`udevadm trigger` does not reopen them. Rule is staged at %1. "
-               "If /etc/udev/rules.d/61-tiltback.rules is not a symlink to that file yet:\n"
-               "sudo mkdir -p /etc/udev/rules.d\n"
-               "sudo ln -sf %1 /etc/udev/rules.d/61-tiltback.rules\n"
-               "For follow to rotate the stylus without a password each time:\n"
-               "sudo cp %3 /etc/systemd/system/tiltback-rebind.service\n"
-               "sudo cp %4 /etc/systemd/system/tiltback-rebind.path\n"
-               "sudo systemctl daemon-reload\n"
-               "sudo systemctl enable --now tiltback-rebind.path\n"
-               "Or reopen once from SSH / Polkit:\n"
-               "sudo %2")
-        .arg(userUdevRulesPath(), rebindScriptPath(), rebindServiceSrcPath(), rebindPathSrcPath());
+    QString text = QStringLiteral(
+        "udev updated the property, but Mutter still has the old evdev fds. "
+        "`udevadm trigger` does not reopen them. Rule is staged at %1. ")
+                       .arg(userUdevRulesPath());
+    if (!udevRuleInstalled()) {
+        text += QStringLiteral(
+            "If /etc/udev/rules.d/61-tiltback.rules is not a symlink to that file yet:\n"
+            "sudo mkdir -p /etc/udev/rules.d\n"
+            "sudo ln -sf %1 /etc/udev/rules.d/61-tiltback.rules\n")
+                    .arg(userUdevRulesPath());
+    }
+    if (rebindPathInstalled()) {
+        text += QStringLiteral(
+            "The packaged tiltback-rebind.path should reopen the devices. "
+            "If it did not: systemctl status tiltback-rebind.path");
+        return text;
+    }
+    text += QStringLiteral(
+                "For follow to rotate the stylus without a password each time, "
+                "install the GNOME helper package (tiltback-gnome / tiltback-gnome.rpm) "
+                "or enable the user units once:\n"
+                "sudo cp %1 /etc/systemd/system/tiltback-rebind.service\n"
+                "sudo cp %2 /etc/systemd/system/tiltback-rebind.path\n"
+                "sudo systemctl daemon-reload\n"
+                "sudo systemctl enable --now tiltback-rebind.path\n"
+                "Or reopen once from SSH / Polkit:\n"
+                "sudo %3")
+                .arg(rebindServiceSrcPath(), rebindPathSrcPath(), rebindScriptPath());
+    return text;
 }
 
 bool udevRuleInstalled()
@@ -1007,12 +1081,12 @@ bool applyUdevMatrix(const Digitizer &dev, const QString &matrix, QString *error
     }
     if (!writeUdevRuleMap(rules, error))
         return false;
-    if (!writeRebindScript(error))
-        return false;
+    writeRebindScript(nullptr);
     writeRebindUnits();
+    const bool asked = requestPackagedRebind();
     if (compositorPickedCurrentRules())
         return true;
-    if (rebindPathInstalled() && waitForRebindStamp(12, 250))
+    if ((rebindPathInstalled() || asked) && waitForRebindStamp(20, 250))
         return true;
     if (!udevRuleInstalled()) {
         if (error)
@@ -1021,7 +1095,8 @@ bool applyUdevMatrix(const Digitizer &dev, const QString &matrix, QString *error
     }
     if (tryRebindHid() && waitForRebindStamp(8, 250))
         return true;
-    requestRebindDialog();
+    if (!rebindPathInstalled())
+        requestRebindDialog();
     if (error)
         *error = udevInstallHint();
     return false;

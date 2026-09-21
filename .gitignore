@@ -1,5 +1,7 @@
 /build/
 /build-alpine/
+/packaging/alpine/work/
+/packaging/alpine/packages/
 CMakeUserPresets.json
 .cache/
 *.user

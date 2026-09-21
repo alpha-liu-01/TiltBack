@@ -1,0 +1,10 @@
+[Unit]
+Description=TiltBack HID rebind when a residual apply is requested
+
+[Path]
+PathModified=/run/tiltback/rebind-request
+PathChanged=/run/tiltback/rebind-request
+Unit=tiltback-rebind.service
+
+[Install]
+WantedBy=multi-user.target

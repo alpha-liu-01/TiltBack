@@ -462,7 +462,7 @@ Two paths; do not mix their binaries. See [build.md](build.md).
 | Path | Command |
 | --- | --- |
 | Host (Debian, Fedora, Arch, openSUSE, native Alpine) | `./scripts/deps.sh` then `./scripts/build.sh --install` → `~/.local` |
-| postmarketOS musl from a glibc PC | `./scripts/build-alpine.sh` (Alpine 3.22 Docker) |
+| postmarketOS musl from a glibc PC | `./scripts/build-alpine.sh` (Alpine 3.22 Docker) or `./scripts/build-apk.sh` (`tiltback` + `tiltback-gnome` with the same hicolor icon) |
 
 QML is interpreted (`NO_CACHEGEN`). The container’s Qt is 6.8; pmOS 26.06 is 6.11.
 

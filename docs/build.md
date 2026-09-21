@@ -75,3 +75,41 @@ scp build-alpine/tiltback data/org.tiltback.TiltBack.desktop user@tablet:
 ```
 
 On the tablet: `~/.local/bin/tiltback` (or `/tmp/tiltback` if home is emergency-RO) and the desktop file under `~/.local/share/applications/` with a full `Exec=` path.
+
+## Alpine / postmarketOS packages
+
+`./scripts/build-apk.sh` builds two musl `.apk` files with the same `org.tiltback.TiltBack` hicolor icon the desktop file already uses:
+
+| Package | Contents |
+| --- | --- |
+| `tiltback` | `/usr/bin/tiltback`, `org.tiltback.TiltBack.desktop`, hicolor icons |
+| `tiltback-gnome` | `/usr/libexec/tiltback/rebind-hid.sh`, `tiltback-rebind.path` / `.service`, tmpfiles.d |
+
+`tiltback-gnome` uses Alpine `install_if="tiltback gnome-shell systemd"`. `apk add tiltback` on a GNOME + systemd machine (postmarketOS GNOME) pulls the helper. Post-install enables `tiltback-rebind.path` and ships `80-tiltback.preset` (`enable tiltback-rebind.path`) so `postmarketos-base-systemd`'s `disable *` preset does not undo it. That is the packaged form of:
+
+```sh
+sudo cp ~/.config/tiltback/tiltback-rebind.service /etc/systemd/system/
+sudo cp ~/.config/tiltback/tiltback-rebind.path /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now tiltback-rebind.path
+```
+
+The packaged path watches `/run/tiltback/rebind-request` (world-writable after tmpfiles). Follow writes the user udev rule, touches that request file, and the system unit rebinds the HID devices as root. Do **not** put a home path in a packaged unit.
+
+Other distros can do the same split:
+
+| Family | How the GNOME helper attaches | Enable the path unit |
+| --- | --- | --- |
+| Alpine / pmOS apk | `install_if` on `gnome-shell` + `systemd` | `tiltback-gnome.post-install` |
+| Debian / Ubuntu | `tiltback-gnome` with `Recommends:` / `Enhances: gnome-shell` | `packaging/debian/tiltback-gnome.postinst` (`deb-systemd-helper`) |
+| Fedora / openSUSE | `%package gnome` + `Supplements: (tiltback and gnome-shell)` | `%post gnome` + `%systemd_post` |
+| Arch | `optdepends=('gnome-shell: Mutter HID rebind')` | `.install` `post_install()` |
+
+The udev symlink (`/etc/udev/rules.d/61-tiltback.rules` → the user rule file) is still per-user and is not created by the package: the package does not know which home to point at. The clinic prints that `ln -sf` if the link is missing.
+
+On the tablet, after the apks are copied:
+
+```sh
+sudo apk add --allow-untrusted ./tiltback-0.0.0-r1.apk ./tiltback-gnome-0.0.0-r1.apk
+# follow and the GUI must be /usr/bin/tiltback, not a leftover ~/.local/bin copy
+```

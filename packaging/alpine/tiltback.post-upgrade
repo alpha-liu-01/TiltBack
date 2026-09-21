@@ -1,0 +1,17 @@
+#!/bin/sh
+# Same leftover cleanup as post-install.
+for f in /home/*/.local/share/applications/org.tiltback.TiltBack.desktop; do
+	[ -f "$f" ] || continue
+	if grep -q '\.local/bin/tiltback' "$f"; then
+		rm -f "$f"
+	fi
+done
+for b in /home/*/.local/bin/tiltback; do
+	[ -x "$b" ] || continue
+	mv "$b" "$b.pre-apk" 2>/dev/null || true
+done
+for u in /home/*/.config/systemd/user/tiltback-follow.service; do
+	[ -f "$u" ] || continue
+	sed -i 's|/home/[^/]*/.local/bin/tiltback|/usr/bin/tiltback|g' "$u" 2>/dev/null || true
+done
+exit 0

@@ -1,0 +1,16 @@
+#!/bin/sh
+set -e
+# Same helper apk's tiltback-gnome.post-install enables.
+if [ "$1" = configure ] && [ -d /run/systemd/system ]; then
+	systemd-tmpfiles --create /usr/lib/tmpfiles.d/tiltback.conf 2>/dev/null || true
+	deb-systemd-helper enable tiltback-rebind.path >/dev/null || true
+	if [ -d /run/systemd/system ]; then
+		systemctl --system daemon-reload >/dev/null || true
+		if [ -n "$2" ]; then
+			deb-systemd-invoke restart tiltback-rebind.path >/dev/null || true
+		else
+			deb-systemd-invoke start tiltback-rebind.path >/dev/null || true
+		fi
+	fi
+fi
+exit 0

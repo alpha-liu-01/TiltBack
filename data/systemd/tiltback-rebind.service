@@ -1,0 +1,6 @@
+[Unit]
+Description=TiltBack HID rebind so Mutter reopens digitizers
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/tiltback/rebind-hid.sh

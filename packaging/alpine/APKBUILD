@@ -1,0 +1,53 @@
+# Maintainer: alpha-liu-01 <116528196+alpha-liu-01@users.noreply.github.com>
+pkgname=tiltback
+pkgver=0.0.0
+pkgrel=3
+pkgdesc="Tablet orientation clinic"
+url="https://github.com/alpha-liu-01/TiltBack"
+arch="all"
+license="custom"
+depends="qt6-qtbase qt6-qtdeclarative qt6-qtwayland"
+makedepends="
+	cmake
+	ninja
+	g++
+	pkgconf
+	libdrm-dev
+	qt6-qtbase-dev
+	qt6-qtdeclarative-dev
+	libx11-dev
+	libxrandr-dev
+	libxi-dev
+	"
+subpackages="$pkgname-gnome:gnome:noarch"
+install="$pkgname.post-install $pkgname.post-upgrade"
+options="!check"
+source="tiltback-$pkgver.tar.gz"
+builddir="$srcdir/tiltback-$pkgver"
+
+build() {
+	cmake -B build -G Ninja \
+		-DCMAKE_BUILD_TYPE=Release \
+		-DCMAKE_INSTALL_PREFIX=/usr \
+		-DCMAKE_INSTALL_LIBDIR=lib
+	cmake --build build
+}
+
+package() {
+	DESTDIR="$pkgdir" cmake --install build
+}
+
+gnome() {
+	pkgdesc="GNOME/Mutter HID rebind helper for TiltBack"
+	depends="$pkgname=$pkgver-r$pkgrel"
+	install_if="$pkgname=$pkgver-r$pkgrel gnome-shell systemd"
+	install="$pkgname-gnome.post-install $pkgname-gnome.post-upgrade $pkgname-gnome.pre-deinstall"
+
+	amove usr/libexec/tiltback
+	amove usr/lib/systemd/system/tiltback-rebind.service
+	amove usr/lib/systemd/system/tiltback-rebind.path
+	amove usr/lib/systemd/system-preset/80-tiltback.preset
+	amove usr/lib/tmpfiles.d/tiltback.conf
+}
+
+sha512sums="SKIP"
