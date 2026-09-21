@@ -64,7 +64,6 @@ int main(int argc, char *argv[])
     setAppIdentity(app);
     app.setDesktopFileName(QStringLiteral("org.tiltback.TiltBack"));
 
-    // --wizard opens the GUI on the spatial page (ClinicModel::startOnWizard).
     if (app.arguments().contains(QStringLiteral("--report"))) {
         ClinicModel clinic;
         std::fprintf(stdout, "%s\n", qPrintable(clinic.reportText()));

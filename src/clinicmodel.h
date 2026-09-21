@@ -17,6 +17,7 @@ class ClinicModel : public QObject
     Q_PROPERTY(QString pictureDetail READ pictureDetail NOTIFY changed)
     Q_PROPERTY(QString pictureSource READ pictureSource NOTIFY changed)
     Q_PROPERTY(QString pictureBackend READ pictureBackend NOTIFY changed)
+    Q_PROPERTY(QString pictureError READ pictureError NOTIFY changed)
 
     Q_PROPERTY(QString fingerValue READ fingerValue NOTIFY changed)
     Q_PROPERTY(QString fingerDetail READ fingerDetail NOTIFY changed)
@@ -50,10 +51,6 @@ class ClinicModel : public QObject
     Q_PROPERTY(int penSecondsLeft READ penSecondsLeft NOTIFY changed)
     Q_PROPERTY(QString pendingPenTransform READ pendingPenTransform NOTIFY changed)
 
-    Q_PROPERTY(bool wizardActive READ wizardActive NOTIFY changed)
-    Q_PROPERTY(int wizardStep READ wizardStep NOTIFY changed)
-    Q_PROPERTY(bool startOnWizard READ startOnWizard CONSTANT)
-
 public:
     explicit ClinicModel(QObject *parent = nullptr);
 
@@ -61,6 +58,7 @@ public:
     QString pictureDetail() const { return m_pictureDetail; }
     QString pictureSource() const { return m_pictureSource; }
     QString pictureBackend() const { return m_pictureBackend; }
+    QString pictureError() const { return m_pictureError; }
 
     QString fingerValue() const { return m_fingerValue; }
     QString fingerDetail() const { return m_fingerDetail; }
@@ -94,31 +92,19 @@ public:
     int penSecondsLeft() const { return m_penSeconds; }
     QString pendingPenTransform() const { return m_penPendingLabel; }
 
-    bool wizardActive() const { return m_wizardActive; }
-    int wizardStep() const { return m_wizardStep; }
-    bool startOnWizard() const { return m_startOnWizard; }
-
     Q_INVOKABLE void refresh();
     Q_INVOKABLE void copyReport();
-    Q_INVOKABLE void applyPicture(const QString &kscreen, bool countdown = true);
+    Q_INVOKABLE void applyPicture(const QString &kscreen);
     Q_INVOKABLE void keepPicture();
     Q_INVOKABLE void revertPicture();
-    Q_INVOKABLE void applyFinger(int r, bool countdown = true);
+    Q_INVOKABLE void applyFinger(int r);
     Q_INVOKABLE void keepFinger();
     Q_INVOKABLE void revertFinger();
-    Q_INVOKABLE void applyPen(int r, bool countdown = true);
+    Q_INVOKABLE void applyPen(int r);
     Q_INVOKABLE void keepPen();
     Q_INVOKABLE void revertPen();
     Q_INVOKABLE void saveHome();
     Q_INVOKABLE void installFollow();
-    Q_INVOKABLE void startWizard();
-    Q_INVOKABLE void cancelWizard();
-    Q_INVOKABLE void finishWizard();
-    Q_INVOKABLE void setWizardStep(int step);
-    Q_INVOKABLE void rotatePictureQuarters(int quarters);
-    Q_INVOKABLE void cyclePicture();
-    Q_INVOKABLE void cycleFinger();
-    Q_INVOKABLE void cyclePen();
 
 signals:
     void changed();
@@ -150,16 +136,13 @@ private:
     bool resolveDigitizer(DigitizerClass kind, Digitizer *out);
     bool setOrientation(const QString &path, int r, QString *error);
     int getOrientation(const QString &path, bool *ok = nullptr);
-    void applyDigitizer(DigitizerClass kind, int r, bool countdown);
+    void applyDigitizer(DigitizerClass kind, int r);
     void warnIfFollowFight(DigitizerClass kind);
     void syncClinicHold();
     void loadHomeState();
     void refreshFollowStatus();
-    void onWizardHoldTick();
-    int residualCycleNext(int current) const;
 
     QTimer *m_revertTimer = nullptr;
-    QTimer *m_wizardHoldTimer = nullptr;
 
     QString m_dmiVendor;
     QString m_dmiProduct;
@@ -219,11 +202,4 @@ private:
     QString m_penPendingLabel;
     int m_penRevertR = 0;
     int m_penAppliedR = 0;
-
-    bool m_wizardActive = false;
-    bool m_startOnWizard = false;
-    int m_wizardStep = 0;
-    QString m_wizardSnapshotKscreen;
-    int m_wizardSnapshotFingerR = 0;
-    int m_wizardSnapshotPenR = 0;
 };

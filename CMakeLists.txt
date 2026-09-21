@@ -21,14 +21,12 @@ qt_add_executable(tiltback
 # pmOS 26.06 is Qt 6.11; Alpine 3.22's Qt is 6.8. Shipping 6.8 qmlcache
 # fails at runtime (V4 data version mismatch). Interpret QML instead.
 set_source_files_properties(qml/Main.qml PROPERTIES QT_RESOURCE_ALIAS Main.qml)
-set_source_files_properties(qml/Wizard.qml PROPERTIES QT_RESOURCE_ALIAS Wizard.qml)
 qt_add_qml_module(tiltback
     URI TiltBack
     VERSION 1.0
     NO_CACHEGEN
     QML_FILES
         qml/Main.qml
-        qml/Wizard.qml
     SOURCES
         src/clinicmodel.h
         src/clinicmodel.cpp
