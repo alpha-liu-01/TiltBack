@@ -487,6 +487,7 @@ void ClinicModel::buildReport()
     lines << QStringLiteral("TiltBack clinic report")
           << QStringLiteral("DMI: %1 / %2 / %3").arg(m_dmiVendor, m_dmiProduct, m_dmiBoard)
           << QStringLiteral("DRM panel-orientation: %1").arg(m_panelOrientation)
+          << QStringLiteral("Output: %1").arg(m_outputName.isEmpty() ? QStringLiteral("(none)") : m_outputName)
           << QStringLiteral("T live: %1").arg(m_outputTransform);
     if (!m_persistedTransform.isEmpty())
         lines << QStringLiteral("T persisted: %1").arg(m_persistedTransform);

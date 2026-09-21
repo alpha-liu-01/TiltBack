@@ -1,0 +1,71 @@
+# Building TiltBack
+
+Plasma Wayland / KWin only. The binary will not rotate GNOME or X11.
+
+Two host paths. Do not mix their outputs: a glibc binary will not run on postmarketOS musl, and the Alpine musl binary is for pmOS.
+
+| Path | When | Command |
+| --- | --- | --- |
+| Host glibc (or native musl) | Debian, Fedora, Arch, openSUSE, or Alpine **on the machine that will run it** | `./scripts/deps.sh` then `./scripts/build.sh --install` |
+| Alpine 3.22 musl Docker | Cross-build for postmarketOS from a glibc PC | `./scripts/build-alpine.sh` |
+
+QML is interpreted (`NO_CACHEGEN`). Alpine 3.22 ships Qt 6.8; postmarketOS 26.06 is Qt 6.11. A 6.8 qmlcache will not load on 6.11.
+
+## Host packages
+
+`./scripts/deps.sh` prints the one-liner for this distro and checks cmake, a C++ compiler, pkg-config, libdrm, and Qt 6 Quick + QuickControls2 + DBus. It does not run sudo.
+
+| Family | Install |
+| --- | --- |
+| Debian / Ubuntu | `sudo apt install cmake ninja-build g++ pkg-config libdrm-dev qt6-base-dev qt6-declarative-dev` |
+| Fedora | `sudo dnf install cmake ninja-build gcc-c++ pkgconf-pkg-config libdrm-devel qt6-qtbase-devel qt6-qtdeclarative-devel` |
+| Arch | `sudo pacman -S --needed cmake ninja gcc pkgconf libdrm qt6-base qt6-declarative` |
+| Alpine (native) | `sudo apk add cmake ninja g++ pkgconf libdrm-dev qt6-qtbase-dev qt6-qtdeclarative-dev` |
+| openSUSE | `sudo zypper install cmake ninja gcc-c++ pkgconf-pkg-config libdrm-devel qt6-base-devel qt6-declarative-devel` |
+
+Ninja is preferred. Without it, `./scripts/build.sh` uses Unix Makefiles.
+
+## Install and run
+
+Default prefix is `~/.local` (no root). `PREFIX` overrides it.
+
+```sh
+./scripts/deps.sh
+./scripts/build.sh --install
+# binary:  ~/.local/bin/tiltback
+# desktop: ~/.local/share/applications/org.tiltback.TiltBack.desktop
+# icons:   ~/.local/share/icons/hicolor/*/apps/org.tiltback.TiltBack.png
+```
+
+If `PREFIX/bin` is not on `PATH`, the installed desktop file gets an absolute `Exec=`. Launch from the Plasma app menu or:
+
+```sh
+export XDG_RUNTIME_DIR=/run/user/$(id -u)
+export WAYLAND_DISPLAY=wayland-0
+export DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u)/bus
+systemd-run --user \
+  -E WAYLAND_DISPLAY -E XDG_RUNTIME_DIR -E DBUS_SESSION_BUS_ADDRESS \
+  "$HOME/.local/bin/tiltback"
+```
+
+Never `pkill -f tiltback` (it matches SSH).
+
+## Follow
+
+```sh
+~/.local/bin/tiltback --install-follow
+systemctl --user enable --now tiltback-follow.service
+```
+
+Follow restamps residuals only. The GUI process must not also run `--follow`.
+
+The RO-home `/tmp` + runtime systemd drop-in path is a postmarketOS emergency, not the default. A writable `~/.config/systemd/user` is enough.
+
+## postmarketOS from a fast PC
+
+```sh
+./scripts/build-alpine.sh
+scp build-alpine/tiltback data/org.tiltback.TiltBack.desktop user@tablet:
+```
+
+On the tablet: `~/.local/bin/tiltback` (or `/tmp/tiltback` if home is emergency-RO) and the desktop file under `~/.local/share/applications/` with a full `Exec=` path.

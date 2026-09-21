@@ -2,7 +2,7 @@
 
 A Linux-native GUI for diagnosing and correcting tablet orientation mismatches between the display, stylus, touch, and pointer cursor.
 
-This note is a concept discussion, not a specification. No implementation decisions beyond toolkit direction are locked.
+This note started as a concept discussion. A Plasma Wayland clinic now exists; the analysis below is still the model. What shipped, what was dropped, and the next fork in the road are at the end.
 
 ## Why this exists
 
@@ -15,7 +15,7 @@ On Linux the same hardware is split across four loosely coupled subsystems. Each
 3. Finger touch is a third evdev device and can have a third default mapping.
 4. The usual fixes are compositor-specific command lines. They are unreliable on Wayland, and a tablet with no keyboard cannot comfortably run them.
 5. Some desktops already have a piece of this. KDE Plasma’s Drawing Tablet panel is the best stylus UI on Linux today, but it is KDE-only and does not own generic touchscreens. GNOME’s Wacom panel is the same idea in the other direction. Neither is a general “make this tablet make sense” tool.
-6. The most disorienting failure is an inverted mouse cursor: the hotspot may track, but the sprite points down and right instead of up and left. The raytrektab RT08WT is a concrete example.
+6. The most disorienting failure is an inverted mouse cursor: the hotspot may track, but the sprite points down and right instead of up and left. The raytrektab RT08WT is a concrete example **on X11**. The same chassis on Plasma Wayland did not show it: the arrow already pointed the right way. Arrow is a compositor-cursor problem, not a given on every RT08WT session.
 
 TiltBack’s job is to make those four layers visible, independently adjustable, testable with a finger or pen, and persistable — without requiring a physical keyboard or a particular desktop environment.
 
@@ -201,6 +201,8 @@ A person holding a half-working tablet should be able to open TiltBack (from a m
 
 A second, non-wizard page is a **diagnostic dashboard**: one row per layer, showing the current transform, the device name, how it was detected, and whether a backend can change it. This is for the user who already knows the machine, and for bug reports.
 
+The spatial wizard was built and then removed. On a sideways session the corner/edge chrome was harder to aim than the dashboard’s Left / Right and R=0 / R=8 buttons — those at least sit under a cursor. The clinic UX is the four cards, independent Keep/Revert, Save home, and follow. A future keyboard-free path can return if it is a thin skin over that same apply path, not a second control language.
+
 ### What “independent layers” means in the UI
 
 The UI should show four cards that can disagree:
@@ -239,7 +241,7 @@ Fighting the desktop’s rotation picker is how these tools become worse than `x
 | User | kscreen, mutter monitors.xml, sway config snippet | user | no |
 | System | udev rule / hwdb, kernel `video=` snippet | Polkit / root | udev: rebind; cmdline: yes |
 
-The wizard should apply **session** immediately (the tablet has to become usable *now*) and offer **user** plus **system** as a second step. Generating a kernel cmdline or a quirk-table snippet is a power-user export, not the default path.
+The clinic should apply **session** immediately (the tablet has to become usable *now*) and offer **user** plus **system** as a second step. Generating a kernel cmdline or a quirk-table snippet is a power-user export, not the default path.
 
 ### What TiltBack is not
 
@@ -315,7 +317,7 @@ A single Wayland protocol for “set this touchscreen’s matrix” does not exi
 | Pre-rotated cursor theme | technically yes, product-no | hotspot and app cursors |
 | Client-side fake cursor overlay | ugly, focus/grab issues | reject for v1 |
 
-The RT08WT symptom is likely this class: landscape 1280×800 panel, Intel cursor plane, a 180° or “identity vs panel-orientation” disagreement. TiltBack should treat that machine as a **design partner and test target**, not as a special-case fork.
+The RT08WT symptom is this class **on X11**: landscape-class 800×1280 DSI panel, Intel cursor plane, a 180° or “identity vs panel-orientation” disagreement. On Plasma Wayland the same machine did not need a software-cursor workaround. Treat the RT08WT as a **design partner** (Picture + residual + DSI builtin), and treat Arrow as an X11 / compositor-cursor test, not as a special-case fork of the dashboard.
 
 ### Live calibration on Wayland — feasible, two methods
 
@@ -348,7 +350,7 @@ The interface is not a GNOME Settings page. It is a spatial tool: a live diagram
 - The app must feel native on Plasma *and* GNOME *and* Sway. A Qt Quick utility on GNOME is normal. A libadwaita utility on Plasma is a GNOME app wearing a costume, and libadwaita fights custom chrome.
 - KDE users who already trust the Drawing Tablet KCM will not be asked to learn a second visual language for the same problem space.
 - Shipping one fullscreen `ApplicationWindow` for calibration is a solved Qt pattern.
-- These chassis (W620 m3-7Y30, RT08WT Gemini Lake) choke on a Python session helper. The first follow daemon woke `kscreen-doctor` and a pile of `busctl` processes every 0.4s, three copies at once. The clinic and its follow helper ship as one C++ process speaking D-Bus in-process (`QDBus`). `tools/tiltback-w620` stays a temporary chassis recipe until Phase 4 replaces it.
+- These chassis (W620 m3-7Y30, RT08WT Gemini Lake) choke on a Python session helper. The first follow daemon woke `kscreen-doctor` and a pile of `busctl` processes every 0.4s, three copies at once. The clinic and its follow helper ship as one C++ process speaking D-Bus in-process (`QDBus`). `tools/tiltback-w620` is a historical chassis recipe; Phase 4’s C++ `--follow` is the lock.
 
 GTK4 remains a reasonable alternative if the project later wants a GNOME Circle aesthetic, or for a tiny Sway-only helper. It is the wrong default for a DE-agnostic clinic.
 
@@ -362,7 +364,7 @@ Language split:
 
 ```
                     ┌─────────────────────────┐
-                    │  QML wizard + dashboard │
+                    │  QML dashboard (clinic) │
                     └────────────┬────────────┘
                                  │
                     ┌────────────▼────────────┐
@@ -394,20 +396,20 @@ The diagnose step should be usable even when every apply path is “not supporte
 5. **Scope creep.** Button remapping, pressure, gesture exclusion, and palm rejection are neighboring graveyards. Orientation only.
 6. **Cursor honesty.** If the backend cannot fix the sprite, say so. A lying “fixed” toggle is worse than the upside-down arrow.
 
-## Suggested shape of an MVP (later)
+## Suggested shape of an MVP
 
-Not a roadmap commitment. A feasibility boundary: the smallest thing that would have saved the RT08WT an afternoon.
+The smallest thing that would have saved these chassis an afternoon. Status against that list:
 
-1. Diagnostic dashboard for the four layers (read-only is already useful).
-2. Wizard: set home edge, rotate picture, align finger, align pen.
-3. Session apply + revert countdown (display *and* residual; the W620 needed both).
-4. Persist the home tuple in the compositor user config (KWin: `kwinoutputconfig.json` + `kcminputrc`).
-5. Follow-output session helper: on KScreen transform change, recompute `R(T)` and apply it. Without this, Display Configuration undoes the clinic.
-6. Two backends: Xorg, and KWin (the W620 is the first).
-7. Cursor page: detect + software-cursor workaround where the backend allows, explanation otherwise.
-8. Export a bug-report bundle and a draft udev / kernel-hint snippet.
+1. **Done.** Diagnostic dashboard for the four layers.
+2. **Dropped.** Spatial wizard. The dashboard apply buttons are the clinic.
+3. **Done.** Session apply + revert countdown (Picture *and* residual).
+4. **Done (KWin).** Home tuple in `home.json` + `kcminputrc` `Orientation=`.
+5. **Done (KWin).** Follow-output C++ helper (`tiltback --follow`).
+6. **Half.** KWin is the only backend. Xorg is still a next-step option, not a given.
+7. **Not needed on the Wayland sessions we have.** Arrow is still a card that says “not inverted / not probed.” The RT08WT inverted sprite is an X11 leftover.
+8. **Not started.** Copy-report exists; udev / `video=` / quirk export does not.
 
-Out of MVP: kernel cmdline installer, community profile service, accelerometer integration, fake cursors, GTK port, udev-as-default residual.
+Out of MVP remains: kernel cmdline installer, community profile service, accelerometer integration, fake cursors, GTK port, udev-as-default residual.
 
 ## Verdict
 
@@ -425,13 +427,60 @@ Do not start by inventing a new protocol or another kernel quirk. Start with a m
 
 Case 1 is a Samsung Galaxy Book 10.6 (SM-W620) on postmarketOS Plasma 6.6 Wayland: native 1280×1920 panel, live DRM `panel orientation=RIGHT_UP` from the 2021 kernel quirk, KWin persisted `Rotated270`, and identity residuals on both the Synaptics touchscreen and the Wacom I2C stylus. The picture is upside down; finger and pen are not. See [case-galaxy-book-w620.md](case-galaxy-book-w620.md).
 
-That case is the first backend (KWin/KScreen), the first two-step clinic (picture, then residual), and the first proof that a userspace clinic is still needed after the kernel has done its job. The session pair and an event-driven follow recipe are confirmed. The remaining work is the C++/QML clinic, not another probe.
+That case is the first backend (KWin/KScreen), the first two-step clinic (picture, then residual), and the first proof that a userspace clinic is still needed after the kernel has done its job. The C++/QML clinic and the follow helper are what that case asked for; they are in the tree.
 
-## Build order
+## Current state (2026-09-21)
 
-Ship **Qt 6 Quick + C++** (CMake). No PySide6. `tools/tiltback-w620` is a chassis recipe until Phase 4 absorbs it.
+TiltBack is a **Plasma 6 Wayland clinic**, not yet a DE-agnostic tool. One C++/QML binary (`tiltback`) does the GUI, `--follow`, `--install-follow`, `--save-home`, and `--report`.
 
-**Phase 0 — App skeleton.** CMake project, C++ `QGuiApplication` + QML `ApplicationWindow`, `.desktop` file on Plasma Wayland. One empty page. No backends. This exists so every later phase has a window a thumb can hit.
+### What a user can do
+
+- Open a maximized dashboard: Picture, Finger, Pen, Arrow, Home / Follow.
+- Apply Picture **Left** / **Right** (KScreen via one-shot `kscreen-doctor` after `org.kde.KScreen` `/backend` `getConfig`). Builtin outputs are `eDP*`, `DSI*`, `LVDS*`. `kscreen-doctor` printing “not found” is a failure even if it exits 0.
+- Apply Finger / Pen **R=0** / **R=8** via KWin `InputDevice` `orientationDBus` (`Int32` only, no `calibrationMatrix`). Identity is name + VID:PID, never `eventN`. Denied: touchpads, Samsung cover `04e8:a00a`, Wacom `WCOM0028` Mouse.
+- Independent 10-second Keep / Revert per layer. Follow is held off for ~15s (`~/.cache/tiltback/clinic-hold` or `/tmp`) so a clinic write is not restamped away.
+- **Save home** writes `home = (T, R_touch, R_pen)` to `~/.config/tiltback/home.json` (or `/tmp` if home is RO) and decimal `vendor/product` groups in `kcminputrc`.
+- **Install/start** drops a systemd `--user` `tiltback-follow.service`. On RO home it uses a runtime drop-in under `/run/user/…` and masks the old Python `tiltback-w620` unit.
+- Follow restamps **R only**. It watches KWin `PropertiesChanged`, `~/.config` / `~/.local/share/kscreen`, the home.json directory, and a 0.4s tick (KWin often zeros `R` without a notify). Reloading `home.json` restamps the new R. The GUI process must not also construct `FollowEngine`.
+- Copy report for a bug dump. Packaged icon is `org.tiltback.TiltBack` in hicolor plus a Qt resource; do not set QML `ApplicationWindow.icon` — that property does not exist on this Controls build and the window fails to load.
+
+### Proven chassis
+
+| Machine | Panel | DRM hint | Home that worked | Notes |
+| --- | --- | --- | --- | --- |
+| Galaxy Book W620 (pmOS Plasma 6.6 Wayland) | `eDP-1` 1280×1920 | `RIGHT_UP` (3) | `T=Rotated90`, `R_touch=8`, `R_pen=8` | Device-space 180° at every pose. KWin zeros `R` on every `T` change; follow restamps 8. Cover / mouse stay at 0. |
+| raytrektab RT08WT (pmOS Plasma Wayland) | `DSI-1` 800×1280 | `BOTTOM_UP` (1) | `T=Rotated180`, `R_touch=8`, `R_pen=8` | Wayland arrow **not** inverted. Goodix `0416:038f` is the real touch; Wacom `2D1F:011E` Stylus is the pen. A non-Stylus Wacom node at `R=0` can steal first-touch pick. |
+
+See [case-galaxy-book-w620.md](case-galaxy-book-w620.md) and [home-offset-and-follow.md](home-offset-and-follow.md).
+
+### How it is built and installed
+
+Two paths; do not mix their binaries. See [build.md](build.md).
+
+| Path | Command |
+| --- | --- |
+| Host (Debian, Fedora, Arch, openSUSE, native Alpine) | `./scripts/deps.sh` then `./scripts/build.sh --install` → `~/.local` |
+| postmarketOS musl from a glibc PC | `./scripts/build-alpine.sh` (Alpine 3.22 Docker) |
+
+QML is interpreted (`NO_CACHEGEN`). The container’s Qt is 6.8; pmOS 26.06 is 6.11.
+
+On the tablet: `~/.local/bin/tiltback`, desktop file with a full `Exec=` path when `~/.local/bin` is not on `PATH`, hicolor icons under `~/.local/share/icons`. Launch the GUI via the Plasma launcher or `systemd-run --user` so it inherits `WAYLAND_DISPLAY` / session bus. If home is emergency-RO, stage the binary in `/tmp`. Never `pkill -f tiltback` (it matches SSH).
+
+### What is not there
+
+- No extracted backend interface. `ClinicModel` talks to KWin/KScreen directly.
+- No GNOME, Phosh, wlroots, or X11 apply path.
+- No software-cursor switch. Arrow is diagnose-only.
+- No udev / hwdb / `video=` export (Phase 7).
+- No wizard. Phase 5 was implemented, then removed as more confusing than inverted dashboard controls.
+
+`tools/tiltback-w620` and the Python follow recipe remain in the tree as history. Do not run them beside C++ follow.
+
+## Build order (as executed)
+
+Ship **Qt 6 Quick + C++** (CMake). No PySide6.
+
+**Phase 0 — App skeleton. Shipped.** CMake project, C++ `QGuiApplication` + QML `ApplicationWindow`, `.desktop` file on Plasma Wayland.
 
 Build on a fast machine in Alpine 3.22 musl (the W620 is too slow, and a host glibc binary will not run on postmarketOS). The container’s Qt is 6.8; pmOS 26.06 is 6.11 — QML is not precompiled (`NO_CACHEGEN`) so the tablet’s engine can load it.
 
@@ -442,19 +491,19 @@ scp build-alpine/tiltback data/org.tiltback.TiltBack.desktop user@W620:
 
 On the tablet: copy the binary to `~/.local/bin/tiltback` and the desktop file to `~/.local/share/applications/`. Launch `tiltback` on `wayland-0`, or from the Plasma app launcher.
 
-**Phase 1 — Probe and four-card dashboard (read-only).** The first real product. Four cards — Picture, Finger, Pen, Arrow — filled from DMI, DRM `panel-orientation`, KScreen `T`, and KWin `InputDevice` residuals via `QDBus` (never fork `kscreen-doctor` in a loop). Identify devices by udev name / VID:PID, never `eventN`. Deny the type-cover class. Arrow may say “not inverted / not probed.” A “copy report” dump is the bug-report seed.
+**Phase 1 — Probe and four-card dashboard (read-only). Shipped.** Four cards — Picture, Finger, Pen, Arrow — filled from DMI, DRM `panel-orientation`, KScreen `T`, and KWin `InputDevice` residuals via `QDBus` (never fork `kscreen-doctor` in a loop). Identify devices by udev name / VID:PID, never `eventN`. Deny the type-cover class. Arrow may say “not inverted / not probed.” A “copy report” dump is the bug-report seed.
 
 Done when the W620 dashboard shows `T=Rotated90` and `R=8` on both digitizers without writing anything.
 
-**Phase 2 — Session apply for Picture, with revert.** One backend method: set the KWin/KScreen output transform. 10-second “keep this?” that restores the previous `T`. Do not touch residuals yet.
+**Phase 2 — Session apply for Picture, with revert. Shipped.** One backend method: set the KWin/KScreen output transform. 10-second “keep this?” that restores the previous `T`. Do not touch residuals yet.
 
 Done when you can flip the W620 `left` ↔ `right` and the countdown puts the picture back.
 
-**Phase 3 — Session apply for Finger and Pen, same revert.** Write `orientationDBus` / matrix on the *named* absolute devices only. Revert restores the previous `R` on each layer independently. Applying Finger must not silently write Pen (the “lock layers” toggle can come later; default is independent).
+**Phase 3 — Session apply for Finger and Pen, same revert. Shipped.** Write `orientationDBus` on the *named* absolute devices only. Revert restores the previous `R` on each layer independently. Applying Finger must not silently write Pen.
 
 Done when the W620 can go `R=0` → `R=8` and back, on touch and stylus separately, without the cover or relative mice moving.
 
-**Phase 4 — Home tuple, persist, follow.** The model the W620 unlocked, in-process in the C++ app (or a tiny C++ helper), not a Python poller.
+**Phase 4 — Home tuple, persist, follow. Shipped.** The model the W620 unlocked, in-process in the C++ app, not a Python poller.
 
 - Store `home = (T_home, R_touch, R_pen)`
 - Persist in compositor user config (`kwinoutputconfig.json` + `kcminputrc`)
@@ -464,18 +513,91 @@ Done when the W620 can go `R=0` → `R=8` and back, on touch and stylus separate
 
 Done when Display Configuration’s 15s revert (or a manual pose change) leaves finger and pen on the picture **immediately**, not on a 30s safety timer.
 
-**Phase 5 — Wizard (keyboard-free).** The spatial UI on top of 1–4: “this edge is the top,” rotate Picture, tap the crosshair with a finger, tap it with the pen. Controls duplicated on edges/corners. Volume keys optional. Saves a draft home, then uses the Phase 2–4 apply path.
+**Phase 5 — Wizard (keyboard-free). Tried, then removed.** The spatial UI was more confusing than changing a setting with inverted controls. The dashboard *is* the keyboard-light clinic: large buttons, Keep/Revert, Save home. Do not rebuild the wizard unless a later pass is strictly a skin over the same apply/hold path.
 
-Done when someone can redo the W620 clinic from the GUI with no SSH and no typed commands.
+**Phase 6 — Arrow, then the RT08WT. RT08WT dashboard done; Arrow apply not started.** The same clinic pointed at the RT08WT: DSI builtin, home + follow, no kernel quest. Wayland did not need a software-cursor workaround. Arrow remains a yes/no plus a backend switch **when a session actually inverts the sprite** (X11 on this chassis, or another compositor).
 
-**Phase 6 — Arrow, then the RT08WT.** Yes/no: “does this pointer point up and left?” Software-cursor workaround only if that backend has a switch. If it does not, say so — do not ship a fake overlay or a rotated cursor theme.
+**Phase 7 — Export only. Not started.** Draft udev / `video=` / quirk snippet as text the user can copy. Polkit udev apply and kernel-cmdline install stay out.
 
-Then point the **same dashboard** at the raytrektab RT08WT. Short diagnose, no kernel quest. That machine is the first real Arrow test and profile zero, not a pre-app research phase.
+**Phase 8 — Second backend. Not started.** Same narrow interface: list outputs, get/set `T`, list absolute devices, get/set `R`, “can you force a software cursor?” The original note put Xorg here, then Mutter/wlroots/Hyprland. That fork is the next-steps question below.
 
-**Phase 7 — Export only.** Draft udev / `video=` / quirk snippet as text the user can copy. Polkit udev apply and kernel-cmdline install stay out.
+**Skip or defer:** udev as the default residual, IMU/auto-rotate, fake cursors, GTK, PySide6, button/pressure editors, the cover touchpad, community profile service, a second wizard.
 
-**Phase 8 — Second backend (Xorg).** Same narrow interface: list outputs, get/set `T`, list absolute devices, get/set `R`, “can you force a software cursor?” Mutter/wlroots/Hyprland after Xorg actually runs.
+**Why that order still holds:** Phase 1 is useful alone and is how the RT08WT was met. Phases 2–3 force apply/revert before anything can double-transform anyone. Phase 4 is the Plasma MVP because without follow the clinic dies in Display Configuration. Phase 5 as a separate UX language did not pay off. Phase 6’s unproven layer (hardware cursor) did not appear on the Wayland sessions we have. C++ from Phase 0 so the W620-class CPU never runs a Python session helper again.
 
-**Skip or defer:** udev as the default residual, IMU/auto-rotate, fake cursors, GTK, PySide6, button/pressure editors, the cover touchpad, community profile service.
+## Next steps
 
-**Why this order:** Phase 1 is useful alone and is how the RT08WT should be met. Phases 2–3 force apply/revert before the wizard can double-transform anyone. Phase 4 is MVP because without follow the clinic dies in Display Configuration. Phase 5 is UX on a proven backend. Phase 6 is the first unproven layer, so it comes after the app can show and revert, not before. C++ from Phase 0 so the W620-class CPU never runs a Python session helper again.
+The Plasma clinic works on two pmOS tablets. The next fork is not “more W620 probes.” It is one of:
+
+1. **A build script and document for other Linux distros, still KDE Plasma.**
+2. **A (partially) new backend for GNOME and Phosh on Wayland.**
+3. **A new backend for X11.**
+
+### Recommendation: do (1) next
+
+The product is proven on one compositor and one libc. Nobody else can install it. A glibc build path (Fedora KDE, Debian/Ubuntu Plasma, Arch, openSUSE) plus an install note is the cheapest way to get a third chassis and to find out whether KWin 6.3–6.6 still speak the same `orientationDBus` / KScreen `/backend` dialect.
+
+What (1) should contain, and nothing more:
+
+- Native `cmake` on the distro’s Qt 6 (Quick, QuickControls2, DBus) + libdrm. Keep `NO_CACHEGEN` unless the build Qt and the session Qt are the same V4 cache version.
+- `cmake --install` prefix: binary, `org.tiltback.TiltBack.desktop`, hicolor icons.
+- How to enable `tiltback-follow.service` on a writable home (the RO `/tmp` + runtime drop-in path is a pmOS emergency, not the default).
+- “Plasma Wayland only. This binary will not rotate GNOME or X11.”
+- A one-page matrix: Alpine musl container vs host glibc.
+
+That is packaging and honesty, not a new orientation model. It also forces a tiny bit of hygiene (`CMAKE_INSTALL_PREFIX`, desktop `Exec=tiltback` on PATH) that the SSH-to-`~/.local/bin` workflow never needed.
+
+Do **not** wait for (1) to fix small Plasma bugs that already bit testers: first-touch pick when a chassis exposes both Goodix and a Wacom non-Stylus node; Picture **none** / **inverted** buttons if Left/Right is a poor fit for a given home. Those are still KWin work and stay in this backend.
+
+### Then extract a backend interface before (2) or (3)
+
+`ClinicModel` is the KWin backend. A second dialect copied into the same file will double-transform someone. The feasibility note already named the narrow interface: list outputs, get/set `T`, list absolute devices, get/set `R`, “can you force a software cursor?” Follow is part of that interface (subscribe to pose change, restamp `R`, never write `T`). Extract it once, keep the QML dashboard, then add a backend.
+
+### (3) X11 before (2) GNOME/Phosh — if a second *apply* backend is the goal
+
+X11 is the smaller second dialect and the only place our hardware has shown Arrow.
+
+| | X11 | GNOME + Phosh Wayland |
+| --- | --- | --- |
+| Display | RandR / `xrandr` | Mutter DisplayConfig / `gdctl` **or** phoc `wlr-output-management` — **not the same API** |
+| Input residual | XInput CTM (`xinput`) | GSettings Wacom + udev residual; Phosh/phoc is compositor IPC + udev |
+| Follow | RandR notify + rewrite CTM | Mutter `MonitorsChanged` **or** a wlroots listener |
+| Software cursor | `SWCursor` — actually exists | Mutter often already drops to SW cursor; Phosh unknown |
+| Double-transform trap | Mild (CTM is the lever) | The main design risk in this document |
+| Fits our machines | RT08WT inverted arrow is here | New testers, new persist format |
+
+Calling “GNOME and Phosh” one backend is a mistake. Phosh’s compositor is **phoc** (wlroots family). GNOME’s is **Mutter**. They share a shell aesthetic, not a D-Bus. Option 2 is two backends wearing one label.
+
+X11 is strategically the past. It is still the right *second* backend if the point is to prove the interface and to finish Arrow on a machine we already own. It is the wrong second backend if the point is “pmOS users who picked Phosh.” Those are different products for a month of work.
+
+### (2) GNOME / Phosh — later, and split
+
+Worth doing when (1) has put the Plasma clinic on a glibc box and the backend interface exists. Then:
+
+- **Mutter first** if the tester is a GNOME tablet (DisplayConfig + GSettings + honest “touch is already mapped to the output”).
+- **phoc/Phosh second** if the tester is a pmOS phone/tablet without Plasma (`wlr-output-management`, same udev residual rules as other wlroots).
+
+Do not invent a udev matrix as the default residual on Mutter “because we already have udev on the list.” Prefer the compositor API; udev is the leftover, and it double-rotates.
+
+Follow on GNOME is a new engine, not a `#ifdef` in `FollowEngine`. Persist is not `kcminputrc`.
+
+### What not to pick next
+
+- Rebuilding the wizard.
+- A software-cursor overlay or a rotated cursor theme (still rejected).
+- Kernel cmdline install / Polkit udev apply (Phase 7 is text export only).
+- Hyprland/Sway before Mutter or X11 — we have no chassis there, and no install story even for Plasma.
+
+### Practical order
+
+```text
+1. Other-distro Plasma build + install note     ← do this
+2. Small KWin leftovers (digitizer pick, …)     ← in parallel if they bite
+3. Extract Backend { T, R, follow, cursor? }    ← required before a second DE
+4. X11 backend  — if Arrow / RT08WT X11 matters
+   or Mutter    — if a GNOME tablet is the next machine
+5. phoc/Phosh   — after Mutter or after a Phosh tester appears
+6. Phase 7 text export                          ← anytime; does not block 1
+```
+
+If TiltBack does the next thing well, it should be this: **the same Plasma clinic, installable on a normal KDE laptop, with an honest “this is KWin” line — then a second backend that is one compositor, named correctly.**
