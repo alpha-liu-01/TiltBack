@@ -225,6 +225,8 @@ ClinicModel::ClinicModel(QObject *parent)
 void ClinicModel::refresh()
 {
     m_pictureError.clear();
+    m_fingerError.clear();
+    m_penError.clear();
     probeDmi();
     probeDrm();
     probeOutputTransform();
@@ -395,8 +397,8 @@ void ClinicModel::probeKwinInputs()
         m_penValue = m_fingerValue;
         return;
     }
-    bool haveFinger = false;
-    bool havePen = false;
+    m_finger = {};
+    m_pen = {};
     QStringList reportLines;
 
     for (const QString &sys : sysNames) {
@@ -435,23 +437,59 @@ void ClinicModel::probeKwinInputs()
                                    .arg(orientationName(r), sys));
         }
 
-        if (!haveFinger && touch && !denied) {
-            haveFinger = true;
-            m_fingerValue = QStringLiteral("R=%1 (%2)").arg(r).arg(orientationName(r));
-            m_fingerDetail = QStringLiteral("%1\n%2").arg(name, id);
-            m_fingerSource = QStringLiteral("KWin InputDevice GetAll (name + VID:PID; %1 is not identity)")
-                                 .arg(sys);
+        if (!m_finger.ok && touch && !denied) {
+            m_finger.name = name;
+            m_finger.vendor = vendor;
+            m_finger.product = product;
+            m_finger.sysName = sys;
+            m_finger.path = path;
+            m_finger.r = r;
+            m_finger.ok = true;
         }
-        if (!havePen && tabletTool && !denied) {
-            havePen = true;
-            m_penValue = QStringLiteral("R=%1 (%2)").arg(r).arg(orientationName(r));
-            m_penDetail = QStringLiteral("%1\n%2").arg(name, id);
-            m_penSource = QStringLiteral("KWin InputDevice GetAll (name + VID:PID; %1 is not identity)")
-                              .arg(sys);
+        if (!m_pen.ok && tabletTool && !denied) {
+            m_pen.name = name;
+            m_pen.vendor = vendor;
+            m_pen.product = product;
+            m_pen.sysName = sys;
+            m_pen.path = path;
+            m_pen.r = r;
+            m_pen.ok = true;
         }
     }
 
     m_reportDevices = reportLines.join(QLatin1Char('\n'));
+    fillFingerCard();
+    fillPenCard();
+}
+
+void ClinicModel::fillFingerCard()
+{
+    if (!m_finger.ok) {
+        if (m_fingerValue.isEmpty())
+            m_fingerValue = QStringLiteral("no touchscreen");
+        return;
+    }
+    m_fingerValue = QStringLiteral("R=%1 (%2)").arg(m_finger.r).arg(orientationName(m_finger.r));
+    m_fingerDetail = QStringLiteral("%1\n%2").arg(m_finger.name, vidPid(m_finger.vendor, m_finger.product));
+    if (!m_fingerError.isEmpty())
+        m_fingerDetail += QLatin1Char('\n') + m_fingerError;
+    m_fingerSource = QStringLiteral("KWin InputDevice GetAll (name + VID:PID; %1 is not identity)")
+                         .arg(m_finger.sysName);
+}
+
+void ClinicModel::fillPenCard()
+{
+    if (!m_pen.ok) {
+        if (m_penValue.isEmpty())
+            m_penValue = QStringLiteral("no stylus");
+        return;
+    }
+    m_penValue = QStringLiteral("R=%1 (%2)").arg(m_pen.r).arg(orientationName(m_pen.r));
+    m_penDetail = QStringLiteral("%1\n%2").arg(m_pen.name, vidPid(m_pen.vendor, m_pen.product));
+    if (!m_penError.isEmpty())
+        m_penDetail += QLatin1Char('\n') + m_penError;
+    m_penSource = QStringLiteral("KWin InputDevice GetAll (name + VID:PID; %1 is not identity)")
+                      .arg(m_pen.sysName);
 }
 
 void ClinicModel::buildReport()
@@ -616,25 +654,25 @@ void ClinicModel::applyPicture(const QString &kscreen)
     }
 
     m_revertKscreen = snapshot;
-    m_pendingTransform = QStringLiteral("T=%1").arg(m_outputTransform);
-    startCountdown();
+    m_picturePendingLabel = QStringLiteral("T=%1").arg(m_outputTransform);
+    startPictureCountdown();
     refresh();
 }
 
 void ClinicModel::keepPicture()
 {
-    if (!m_pendingRevert)
+    if (!m_picturePending)
         return;
-    stopCountdown();
+    stopPictureCountdown();
     emit changed();
 }
 
 void ClinicModel::revertPicture()
 {
-    if (!m_pendingRevert)
+    if (!m_picturePending)
         return;
     const QString target = m_revertKscreen;
-    stopCountdown();
+    stopPictureCountdown();
     if (target.isEmpty()) {
         refresh();
         return;
@@ -645,27 +683,364 @@ void ClinicModel::revertPicture()
     refresh();
 }
 
-void ClinicModel::startCountdown()
+bool ClinicModel::anyPending() const
 {
-    m_pendingRevert = true;
-    m_revertSecondsLeft = 10;
-    m_revertTimer->start();
+    return m_picturePending || m_fingerPending || m_penPending;
 }
 
-void ClinicModel::stopCountdown()
+void ClinicModel::ensureTimer()
 {
-    m_revertTimer->stop();
-    m_pendingRevert = false;
-    m_revertSecondsLeft = 0;
-    m_pendingTransform.clear();
+    if (!m_revertTimer->isActive())
+        m_revertTimer->start();
+}
+
+void ClinicModel::startPictureCountdown()
+{
+    m_picturePending = true;
+    m_pictureSeconds = 10;
+    ensureTimer();
+}
+
+void ClinicModel::stopPictureCountdown()
+{
+    m_picturePending = false;
+    m_pictureSeconds = 0;
+    m_picturePendingLabel.clear();
+    if (!anyPending())
+        m_revertTimer->stop();
+}
+
+void ClinicModel::startFingerCountdown()
+{
+    m_fingerPending = true;
+    m_fingerSeconds = 10;
+    ensureTimer();
+}
+
+void ClinicModel::stopFingerCountdown()
+{
+    m_fingerPending = false;
+    m_fingerSeconds = 0;
+    m_fingerPendingLabel.clear();
+    if (!anyPending())
+        m_revertTimer->stop();
+}
+
+void ClinicModel::startPenCountdown()
+{
+    m_penPending = true;
+    m_penSeconds = 10;
+    ensureTimer();
+}
+
+void ClinicModel::stopPenCountdown()
+{
+    m_penPending = false;
+    m_penSeconds = 0;
+    m_penPendingLabel.clear();
+    if (!anyPending())
+        m_revertTimer->stop();
 }
 
 void ClinicModel::onRevertTick()
 {
-    m_revertSecondsLeft--;
-    if (m_revertSecondsLeft <= 0) {
-        revertPicture();
+    if (m_picturePending) {
+        m_pictureSeconds--;
+        if (m_pictureSeconds <= 0)
+            revertPicture();
+    }
+    if (m_fingerPending) {
+        m_fingerSeconds--;
+        if (m_fingerSeconds <= 0)
+            revertFinger();
+        else
+            warnIfFollowFight(DigitizerClass::Finger);
+    }
+    if (m_penPending) {
+        m_penSeconds--;
+        if (m_penSeconds <= 0)
+            revertPen();
+        else
+            warnIfFollowFight(DigitizerClass::Pen);
+    }
+    if (!anyPending())
+        m_revertTimer->stop();
+    emit changed();
+}
+
+bool ClinicModel::resolveDigitizer(DigitizerClass kind, Digitizer *out)
+{
+    if (!out)
+        return false;
+    *out = {};
+    QDBusConnection bus = QDBusConnection::sessionBus();
+    if (!bus.isConnected())
+        return false;
+
+    QDBusInterface mgr(
+        QStringLiteral("org.kde.KWin"),
+        QStringLiteral("/org/kde/KWin/InputDevice"),
+        QStringLiteral("org.freedesktop.DBus.Properties"),
+        bus);
+    const QDBusReply<QDBusVariant> namesReply = mgr.call(
+        QStringLiteral("Get"),
+        QStringLiteral("org.kde.KWin.InputDeviceManager"),
+        QStringLiteral("devicesSysNames"));
+    if (!namesReply.isValid())
+        return false;
+
+    QStringList sysNames;
+    const QVariant namesVar = namesReply.value().variant();
+    if (namesVar.canConvert<QStringList>())
+        sysNames = namesVar.toStringList();
+    else if (namesVar.canConvert<QDBusArgument>())
+        sysNames = qdbus_cast<QStringList>(namesVar.value<QDBusArgument>());
+
+    const Digitizer want = (kind == DigitizerClass::Finger) ? m_finger : m_pen;
+    Digitizer first;
+
+    for (const QString &sys : sysNames) {
+        const QString path = QStringLiteral("/org/kde/KWin/InputDevice/%1").arg(sys);
+        QDBusMessage msg = QDBusMessage::createMethodCall(
+            QStringLiteral("org.kde.KWin"),
+            path,
+            QStringLiteral("org.freedesktop.DBus.Properties"),
+            QStringLiteral("GetAll"));
+        msg << QStringLiteral("org.kde.KWin.InputDevice");
+        const QDBusMessage reply = bus.call(msg);
+        if (reply.type() == QDBusMessage::ErrorMessage || reply.arguments().isEmpty())
+            continue;
+        QVariantMap all;
+        const QVariant firstArg = reply.arguments().at(0);
+        if (firstArg.canConvert<QVariantMap>())
+            all = firstArg.toMap();
+        else if (firstArg.canConvert<QDBusArgument>())
+            all = qdbus_cast<QVariantMap>(firstArg.value<QDBusArgument>());
+        if (all.isEmpty())
+            continue;
+        const QString name = unwrap(all.value(QStringLiteral("name"))).toString();
+        const bool touch = unwrap(all.value(QStringLiteral("touch"))).toBool();
+        const bool tabletTool = unwrap(all.value(QStringLiteral("tabletTool"))).toBool();
+        const bool touchpad = unwrap(all.value(QStringLiteral("touchpad"))).toBool();
+        if (isDenied(name, touchpad))
+            continue;
+        if (kind == DigitizerClass::Finger && !touch)
+            continue;
+        if (kind == DigitizerClass::Pen && !tabletTool)
+            continue;
+
+        Digitizer d;
+        d.name = name;
+        d.vendor = unwrap(all.value(QStringLiteral("vendor"))).toUInt();
+        d.product = unwrap(all.value(QStringLiteral("product"))).toUInt();
+        d.sysName = sys;
+        d.path = path;
+        d.r = unwrap(all.value(QStringLiteral("orientationDBus"))).toInt();
+        d.ok = true;
+
+        if (want.ok && !want.name.isEmpty()
+            && want.name == d.name && want.vendor == d.vendor && want.product == d.product) {
+            *out = d;
+            return true;
+        }
+        if (!first.ok)
+            first = d;
+    }
+    if (first.ok) {
+        *out = first;
+        return true;
+    }
+    return false;
+}
+
+bool ClinicModel::setOrientation(const QString &path, int r, QString *error)
+{
+    QDBusConnection bus = QDBusConnection::sessionBus();
+    QDBusMessage msg = QDBusMessage::createMethodCall(
+        QStringLiteral("org.kde.KWin"),
+        path,
+        QStringLiteral("org.freedesktop.DBus.Properties"),
+        QStringLiteral("Set"));
+    msg << QStringLiteral("org.kde.KWin.InputDevice")
+        << QStringLiteral("orientationDBus")
+        << QVariant::fromValue(QDBusVariant(QVariant::fromValue(qint32(r))));
+    const QDBusMessage reply = bus.call(msg);
+    if (reply.type() == QDBusMessage::ErrorMessage) {
+        if (error)
+            *error = reply.errorMessage();
+        return false;
+    }
+    return true;
+}
+
+int ClinicModel::getOrientation(const QString &path, bool *ok)
+{
+    QDBusConnection bus = QDBusConnection::sessionBus();
+    QDBusMessage msg = QDBusMessage::createMethodCall(
+        QStringLiteral("org.kde.KWin"),
+        path,
+        QStringLiteral("org.freedesktop.DBus.Properties"),
+        QStringLiteral("Get"));
+    msg << QStringLiteral("org.kde.KWin.InputDevice")
+        << QStringLiteral("orientationDBus");
+    const QDBusMessage reply = bus.call(msg);
+    if (reply.type() == QDBusMessage::ErrorMessage || reply.arguments().isEmpty()) {
+        if (ok)
+            *ok = false;
+        return 0;
+    }
+    if (ok)
+        *ok = true;
+    return unwrap(reply.arguments().at(0)).toInt();
+}
+
+void ClinicModel::applyDigitizer(DigitizerClass kind, int r)
+{
+    const bool finger = kind == DigitizerClass::Finger;
+    QString &err = finger ? m_fingerError : m_penError;
+    Digitizer &slot = finger ? m_finger : m_pen;
+
+    Digitizer live;
+    if (!resolveDigitizer(kind, &live)) {
+        err = QStringLiteral("no named digitizer");
+        if (finger)
+            fillFingerCard();
+        else
+            fillPenCard();
+        emit changed();
         return;
     }
+    slot = live;
+
+    if (live.r == r) {
+        err = QStringLiteral("already R=%1").arg(r);
+        if (finger)
+            fillFingerCard();
+        else
+            fillPenCard();
+        emit changed();
+        return;
+    }
+
+    const int snapshot = live.r;
+    if (!setOrientation(live.path, r, &err)) {
+        const QString keep = err;
+        refresh();
+        err = keep;
+        if (finger)
+            fillFingerCard();
+        else
+            fillPenCard();
+        emit changed();
+        return;
+    }
+
+    bool ok = false;
+    const int now = getOrientation(live.path, &ok);
+    if (!ok || now != r) {
+        err = QStringLiteral("KWin did not change R to %1").arg(r);
+        refresh();
+        if (finger)
+            m_fingerError = QStringLiteral("KWin did not change R to %1").arg(r);
+        else
+            m_penError = QStringLiteral("KWin did not change R to %1").arg(r);
+        if (finger)
+            fillFingerCard();
+        else
+            fillPenCard();
+        emit changed();
+        return;
+    }
+
+    live.r = now;
+    slot = live;
+    if (finger) {
+        m_fingerRevertR = snapshot;
+        m_fingerAppliedR = r;
+        m_fingerPendingLabel = QStringLiteral("R=%1 (%2)").arg(r).arg(orientationName(r));
+        startFingerCountdown();
+    } else {
+        m_penRevertR = snapshot;
+        m_penAppliedR = r;
+        m_penPendingLabel = QStringLiteral("R=%1 (%2)").arg(r).arg(orientationName(r));
+        startPenCountdown();
+    }
+    refresh();
+    warnIfFollowFight(kind);
+    if (kind == DigitizerClass::Finger)
+        fillFingerCard();
+    else
+        fillPenCard();
     emit changed();
+}
+
+void ClinicModel::warnIfFollowFight(DigitizerClass kind)
+{
+    Digitizer live;
+    if (!resolveDigitizer(kind, &live))
+        return;
+    const int applied = (kind == DigitizerClass::Finger) ? m_fingerAppliedR : m_penAppliedR;
+    const bool pending = (kind == DigitizerClass::Finger) ? m_fingerPending : m_penPending;
+    if (!pending || applied != 0 || live.r != 8)
+        return;
+    const QString warn = QStringLiteral("R jumped to 8 (is follow running?)");
+    if (kind == DigitizerClass::Finger) {
+        m_finger = live;
+        m_fingerError = warn;
+        fillFingerCard();
+    } else {
+        m_pen = live;
+        m_penError = warn;
+        fillPenCard();
+    }
+}
+
+void ClinicModel::applyFinger(int r)
+{
+    applyDigitizer(DigitizerClass::Finger, r);
+}
+
+void ClinicModel::applyPen(int r)
+{
+    applyDigitizer(DigitizerClass::Pen, r);
+}
+
+void ClinicModel::keepFinger()
+{
+    if (!m_fingerPending)
+        return;
+    stopFingerCountdown();
+    emit changed();
+}
+
+void ClinicModel::keepPen()
+{
+    if (!m_penPending)
+        return;
+    stopPenCountdown();
+    emit changed();
+}
+
+void ClinicModel::revertFinger()
+{
+    if (!m_fingerPending)
+        return;
+    const int target = m_fingerRevertR;
+    stopFingerCountdown();
+    Digitizer live;
+    if (resolveDigitizer(DigitizerClass::Finger, &live))
+        setOrientation(live.path, target, &m_fingerError);
+    refresh();
+}
+
+void ClinicModel::revertPen()
+{
+    if (!m_penPending)
+        return;
+    const int target = m_penRevertR;
+    stopPenCountdown();
+    Digitizer live;
+    if (resolveDigitizer(DigitizerClass::Pen, &live))
+        setOrientation(live.path, target, &m_penError);
+    refresh();
 }

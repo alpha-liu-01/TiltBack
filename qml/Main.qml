@@ -156,6 +156,26 @@ ApplicationWindow {
                 detail: clinic.fingerDetail
                 how: clinic.fingerSource
                 backend: clinic.fingerBackend
+
+                Row {
+                    spacing: 12
+                    width: parent.width
+
+                    Button {
+                        width: (parent.width - parent.spacing) / 2
+                        height: Math.max(64, Math.round(root.height * 0.08))
+                        text: qsTr("R=0")
+                        font.pixelSize: Math.max(20, Math.round(root.width * 0.024))
+                        onClicked: clinic.applyFinger(0)
+                    }
+                    Button {
+                        width: (parent.width - parent.spacing) / 2
+                        height: Math.max(64, Math.round(root.height * 0.08))
+                        text: qsTr("R=8")
+                        font.pixelSize: Math.max(20, Math.round(root.width * 0.024))
+                        onClicked: clinic.applyFinger(8)
+                    }
+                }
             }
             LayerCard {
                 title: qsTr("Pen")
@@ -163,6 +183,26 @@ ApplicationWindow {
                 detail: clinic.penDetail
                 how: clinic.penSource
                 backend: clinic.penBackend
+
+                Row {
+                    spacing: 12
+                    width: parent.width
+
+                    Button {
+                        width: (parent.width - parent.spacing) / 2
+                        height: Math.max(64, Math.round(root.height * 0.08))
+                        text: qsTr("R=0")
+                        font.pixelSize: Math.max(20, Math.round(root.width * 0.024))
+                        onClicked: clinic.applyPen(0)
+                    }
+                    Button {
+                        width: (parent.width - parent.spacing) / 2
+                        height: Math.max(64, Math.round(root.height * 0.08))
+                        text: qsTr("R=8")
+                        font.pixelSize: Math.max(20, Math.round(root.width * 0.024))
+                        onClicked: clinic.applyPen(8)
+                    }
+                }
             }
             LayerCard {
                 title: qsTr("Arrow")
@@ -194,42 +234,50 @@ ApplicationWindow {
         }
     }
 
-    Rectangle {
-        visible: clinic.pendingRevert
-        z: 10
-        anchors.fill: parent
-        anchors.margins: root.cornerSize + 8
+    component RevertBanner: Rectangle {
+        required property string question
+        required property int seconds
+        required property string detail
+        signal keepClicked()
+        signal revertClicked()
+
+        width: parent.width
+        implicitHeight: visible ? bannerCol.implicitHeight + 28 : 0
+        height: implicitHeight
         color: "#e6111111"
-        radius: 20
+        radius: 16
         border.color: "#8ec8ff"
         border.width: 2
 
         Column {
-            anchors.centerIn: parent
-            width: parent.width - 32
-            spacing: 16
+            id: bannerCol
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: parent.top
+            anchors.margins: 14
+            spacing: 10
 
             Label {
                 width: parent.width
                 horizontalAlignment: Text.AlignHCenter
-                text: qsTr("Keep this picture?")
+                text: question
                 color: "#f2f2f2"
-                font.pixelSize: Math.max(28, Math.round(root.width * 0.04))
+                font.pixelSize: Math.max(24, Math.round(root.width * 0.032))
                 wrapMode: Text.WordWrap
             }
             Label {
                 width: parent.width
                 horizontalAlignment: Text.AlignHCenter
-                text: String(clinic.revertSecondsLeft)
+                text: String(seconds)
                 color: "#8ec8ff"
-                font.pixelSize: Math.max(64, Math.round(root.width * 0.12))
+                font.pixelSize: Math.max(40, Math.round(root.width * 0.07))
             }
             Label {
                 width: parent.width
                 horizontalAlignment: Text.AlignHCenter
-                text: clinic.pendingTransform
+                text: detail
                 color: "#d0d0d0"
-                font.pixelSize: Math.max(22, Math.round(root.width * 0.028))
+                font.pixelSize: Math.max(18, Math.round(root.width * 0.022))
                 wrapMode: Text.WordWrap
             }
             Row {
@@ -238,17 +286,66 @@ ApplicationWindow {
 
                 Button {
                     width: (parent.width - parent.spacing) / 2
-                    height: Math.max(72, Math.round(root.height * 0.1))
+                    height: Math.max(64, Math.round(root.height * 0.08))
                     text: qsTr("Keep")
-                    font.pixelSize: Math.max(22, Math.round(root.width * 0.028))
-                    onClicked: clinic.keepPicture()
+                    font.pixelSize: Math.max(20, Math.round(root.width * 0.024))
+                    onClicked: keepClicked()
                 }
                 Button {
                     width: (parent.width - parent.spacing) / 2
-                    height: Math.max(72, Math.round(root.height * 0.1))
+                    height: Math.max(64, Math.round(root.height * 0.08))
                     text: qsTr("Revert")
-                    font.pixelSize: Math.max(22, Math.round(root.width * 0.028))
-                    onClicked: clinic.revertPicture()
+                    font.pixelSize: Math.max(20, Math.round(root.width * 0.024))
+                    onClicked: revertClicked()
+                }
+            }
+        }
+    }
+
+    Rectangle {
+        visible: clinic.pendingPictureRevert || clinic.pendingFingerRevert || clinic.pendingPenRevert
+        z: 10
+        anchors.fill: parent
+        anchors.margins: root.cornerSize + 8
+        color: "#99111111"
+        radius: 20
+
+        Flickable {
+            anchors.fill: parent
+            anchors.margins: 8
+            contentWidth: width
+            contentHeight: banners.implicitHeight
+            clip: true
+            boundsBehavior: Flickable.StopAtBounds
+
+            Column {
+                id: banners
+                width: parent.width
+                spacing: 12
+
+                RevertBanner {
+                    visible: clinic.pendingPictureRevert
+                    question: qsTr("Keep this picture?")
+                    seconds: clinic.pictureSecondsLeft
+                    detail: clinic.pendingPictureTransform
+                    onKeepClicked: clinic.keepPicture()
+                    onRevertClicked: clinic.revertPicture()
+                }
+                RevertBanner {
+                    visible: clinic.pendingFingerRevert
+                    question: qsTr("Keep this finger?")
+                    seconds: clinic.fingerSecondsLeft
+                    detail: clinic.pendingFingerTransform
+                    onKeepClicked: clinic.keepFinger()
+                    onRevertClicked: clinic.revertFinger()
+                }
+                RevertBanner {
+                    visible: clinic.pendingPenRevert
+                    question: qsTr("Keep this pen?")
+                    seconds: clinic.penSecondsLeft
+                    detail: clinic.pendingPenTransform
+                    onKeepClicked: clinic.keepPen()
+                    onRevertClicked: clinic.revertPen()
                 }
             }
         }

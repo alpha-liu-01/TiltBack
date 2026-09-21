@@ -33,9 +33,17 @@ class ClinicModel : public QObject
 
     Q_PROPERTY(QString reportText READ reportText NOTIFY changed)
 
-    Q_PROPERTY(bool pendingRevert READ pendingRevert NOTIFY changed)
-    Q_PROPERTY(int revertSecondsLeft READ revertSecondsLeft NOTIFY changed)
-    Q_PROPERTY(QString pendingTransform READ pendingTransform NOTIFY changed)
+    Q_PROPERTY(bool pendingPictureRevert READ pendingPictureRevert NOTIFY changed)
+    Q_PROPERTY(int pictureSecondsLeft READ pictureSecondsLeft NOTIFY changed)
+    Q_PROPERTY(QString pendingPictureTransform READ pendingPictureTransform NOTIFY changed)
+
+    Q_PROPERTY(bool pendingFingerRevert READ pendingFingerRevert NOTIFY changed)
+    Q_PROPERTY(int fingerSecondsLeft READ fingerSecondsLeft NOTIFY changed)
+    Q_PROPERTY(QString pendingFingerTransform READ pendingFingerTransform NOTIFY changed)
+
+    Q_PROPERTY(bool pendingPenRevert READ pendingPenRevert NOTIFY changed)
+    Q_PROPERTY(int penSecondsLeft READ penSecondsLeft NOTIFY changed)
+    Q_PROPERTY(QString pendingPenTransform READ pendingPenTransform NOTIFY changed)
 
 public:
     explicit ClinicModel(QObject *parent = nullptr);
@@ -62,32 +70,71 @@ public:
 
     QString reportText() const { return m_reportText; }
 
-    bool pendingRevert() const { return m_pendingRevert; }
-    int revertSecondsLeft() const { return m_revertSecondsLeft; }
-    QString pendingTransform() const { return m_pendingTransform; }
+    bool pendingPictureRevert() const { return m_picturePending; }
+    int pictureSecondsLeft() const { return m_pictureSeconds; }
+    QString pendingPictureTransform() const { return m_picturePendingLabel; }
+
+    bool pendingFingerRevert() const { return m_fingerPending; }
+    int fingerSecondsLeft() const { return m_fingerSeconds; }
+    QString pendingFingerTransform() const { return m_fingerPendingLabel; }
+
+    bool pendingPenRevert() const { return m_penPending; }
+    int penSecondsLeft() const { return m_penSeconds; }
+    QString pendingPenTransform() const { return m_penPendingLabel; }
 
     Q_INVOKABLE void refresh();
     Q_INVOKABLE void copyReport();
     Q_INVOKABLE void applyPicture(const QString &kscreen);
     Q_INVOKABLE void keepPicture();
     Q_INVOKABLE void revertPicture();
+    Q_INVOKABLE void applyFinger(int r);
+    Q_INVOKABLE void keepFinger();
+    Q_INVOKABLE void revertFinger();
+    Q_INVOKABLE void applyPen(int r);
+    Q_INVOKABLE void keepPen();
+    Q_INVOKABLE void revertPen();
 
 signals:
     void changed();
 
 private:
+    enum class DigitizerClass { Finger, Pen };
+
+    struct Digitizer {
+        QString name;
+        quint32 vendor = 0;
+        quint32 product = 0;
+        QString sysName;
+        QString path;
+        int r = 0;
+        bool ok = false;
+    };
+
     void probeDmi();
     void probeDrm();
     void probeOutputTransform();
     void probeKwinInputs();
     void buildReport();
     void fillPictureCard();
+    void fillFingerCard();
+    void fillPenCard();
     bool ensureKscreenBackend();
     bool readLiveOutput();
     bool runDoctor(const QString &output, const QString &kscreen);
-    void startCountdown();
-    void stopCountdown();
+    bool anyPending() const;
+    void ensureTimer();
+    void startPictureCountdown();
+    void stopPictureCountdown();
+    void startFingerCountdown();
+    void stopFingerCountdown();
+    void startPenCountdown();
+    void stopPenCountdown();
     void onRevertTick();
+    bool resolveDigitizer(DigitizerClass kind, Digitizer *out);
+    bool setOrientation(const QString &path, int r, QString *error);
+    int getOrientation(const QString &path, bool *ok = nullptr);
+    void applyDigitizer(DigitizerClass kind, int r);
+    void warnIfFollowFight(DigitizerClass kind);
 
     QTimer *m_revertTimer = nullptr;
 
@@ -100,6 +147,8 @@ private:
     QString m_outputName;
     QString m_liveKscreen;
     QString m_pictureError;
+    QString m_fingerError;
+    QString m_penError;
     QString m_reportDevices;
 
     QString m_pictureValue;
@@ -110,12 +159,12 @@ private:
     QString m_fingerValue;
     QString m_fingerDetail;
     QString m_fingerSource;
-    QString m_fingerBackend = QStringLiteral("later (Phase 3)");
+    QString m_fingerBackend = QStringLiteral("yes (KWin session)");
 
     QString m_penValue;
     QString m_penDetail;
     QString m_penSource;
-    QString m_penBackend = QStringLiteral("later (Phase 3)");
+    QString m_penBackend = QStringLiteral("yes (KWin session)");
 
     QString m_arrowValue = QStringLiteral("not inverted / not probed");
     QString m_arrowDetail = QStringLiteral("Cursor plane is Phase 6. This chassis has not shown an inverted arrow.");
@@ -124,8 +173,23 @@ private:
 
     QString m_reportText;
 
-    bool m_pendingRevert = false;
-    int m_revertSecondsLeft = 0;
-    QString m_pendingTransform;
+    Digitizer m_finger;
+    Digitizer m_pen;
+
+    bool m_picturePending = false;
+    int m_pictureSeconds = 0;
+    QString m_picturePendingLabel;
     QString m_revertKscreen;
+
+    bool m_fingerPending = false;
+    int m_fingerSeconds = 0;
+    QString m_fingerPendingLabel;
+    int m_fingerRevertR = 0;
+    int m_fingerAppliedR = 0;
+
+    bool m_penPending = false;
+    int m_penSeconds = 0;
+    QString m_penPendingLabel;
+    int m_penRevertR = 0;
+    int m_penAppliedR = 0;
 };
