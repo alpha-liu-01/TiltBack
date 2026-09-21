@@ -25,12 +25,29 @@ done
 
 if command -v ninja >/dev/null 2>&1; then
     gen='Ninja'
+    ninja_bin=$(command -v ninja)
 else
     gen='Unix Makefiles'
+    ninja_bin=
+fi
+
+# A previous configure can pin CMAKE_MAKE_PROGRAM to a deleted path
+# (e.g. a user sysroot). Wipe the cache so we pick the system ninja.
+if [ -f "$root/build/CMakeCache.txt" ]; then
+    cached=$(sed -n 's/^CMAKE_MAKE_PROGRAM:FILEPATH=//p' "$root/build/CMakeCache.txt" | head -n 1)
+    if [ -n "$cached" ] && [ ! -x "$cached" ]; then
+        echo "stale CMAKE_MAKE_PROGRAM=$cached — wiping $root/build"
+        rm -rf "$root/build"
+    fi
 fi
 
 mkdir -p "$root/build"
-cmake -G "$gen" -S "$root" -B "$root/build" -DCMAKE_BUILD_TYPE=Release
+cmake_args="-DCMAKE_BUILD_TYPE=Release"
+if [ -n "$ninja_bin" ]; then
+    cmake_args="$cmake_args -DCMAKE_MAKE_PROGRAM=$ninja_bin"
+fi
+# shellcheck disable=SC2086
+cmake -G "$gen" -S "$root" -B "$root/build" $cmake_args
 cmake --build "$root/build"
 
 echo "binary: $root/build/tiltback"
