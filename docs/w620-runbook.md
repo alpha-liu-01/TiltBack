@@ -16,50 +16,47 @@ Follow is required even though `R` is constant. KWin **zeros** digitizer `Orient
 
 ## Re-run after a reboot
 
-From this repo, in a graphical session (or SSH with the session bus):
+From a graphical session (or SSH with the session bus), use the C++ binary — not a leftover Python helper:
 
 ```sh
 export XDG_RUNTIME_DIR=/run/user/$(id -u)
 export WAYLAND_DISPLAY=wayland-0
 export DBUS_SESSION_BUS_ADDRESS=unix:path=$XDG_RUNTIME_DIR/bus
 
-python3 tools/tiltback-w620
+tiltback --save-home
+tiltback --install-follow
+systemctl --user enable --now tiltback-follow.service
 ```
 
-That copies the script to `~/.local/bin/tiltback-w620`, installs **one** user systemd unit, sets `eDP-1` to `left`, stamps residual `8`, and starts follow. Do not also autostart `--follow` from Plasma.
+Or the dashboard: Picture **Left**, Finger/Pen **R=8**, Save home, Install follow. `--install-follow` writes `/usr/bin/tiltback --follow` when that file exists, and stops a leftover `tiltback-w620.service` if one is still enabled. Do not also autostart `--follow` from Plasma.
 
 ## Follow: what burned the CPU, and the fix
 
-The first helper was not a tight spin loop. It slept 0.4s, then did an expensive amount of work, and a bad install ran **three copies** of that at once (systemd `tiltback-w620.service` plus both `tiltback-w620.desktop` and `tiltback-follow.desktop` in `~/.config/autostart`).
+The first helper was not a tight spin loop. It slept 0.4s, then did an expensive amount of work, and a bad install ran **three copies** of that at once (a systemd unit plus two Plasma autostart `.desktop` files).
 
 Each copy, every 0.4s, forked `kscreen-doctor -j` (a full Qt/KScreen dump). Every 2s it also ran `busctl tree` and about six `busctl get-property` calls on **all** KWin input nodes (fourteen on this chassis, including the type cover) just to see if two digitizers still had `R=8`. That is the ~80% spike every couple of seconds.
 
 KWin only wipes `R` when `T` changes. Persist (`kcminputrc`) is not enough; follow is still required. What is *not* required is a process storm.
 
-The current recipe (`tools/tiltback-w620 --follow`):
+The current recipe (`tiltback --follow`):
 
-- One `tiltback-w620.service`. Install deletes the extra autostart files and disables `tiltback-follow.service`.
-- No `kscreen-doctor` and no `busctl` in the follow loop. In-process `python-dbus` `Get`/`Set` on the two named digitizers only.
+- One `tiltback-follow.service`. `--install-follow` stops and disables a leftover Python `tiltback-w620.service` if it is still present.
+- No `kscreen-doctor` and no `busctl` in the follow loop. In-process `QDBus` `Get`/`Set` on the two named digitizers only.
 - Wake sources: KWin `PropertiesChanged`, a **directory** watch on `~/.config` / `~/.local/share/kscreen` (KWin replaces the `kwinoutputconfig.json` inode; a watch on the file itself goes silent), and a 0.4s tick that only Gets `orientationDBus` on the cached stylus and touch paths. If `R` is already 8, the tick does nothing else.
 - The 0.4s tick exists because KWin often zeros `R` in memory **without** a D-Bus notify, and because a read-only root (`emergency_ro` after an `sda` write error on 2026-09-21) means the config file is never rewritten. Without the tick, follow waited 30s for a “safety” restamp. The tick is the delay killer; it is not the old poller.
 
-This Python helper is a chassis recipe. The app (Phase 4) must do the same work in C++/`QDBus` in one process. Do not port the `kscreen-doctor` loop.
-
-If root is read-only, `~/.local/bin` cannot be updated; run the new script from `/tmp` with a systemd `--user` runtime drop-in until the filesystem is writable, then `python3 tools/tiltback-w620 --install` once.
+If home is emergency-RO, stage the binary at `/tmp/tiltback` and use the runtime systemd drop-in; `--install-follow` already knows that path.
 
 Useful flags:
 
 ```sh
-python3 tools/tiltback-w620 --status   # four layers + cover, no writes
-python3 tools/tiltback-w620 --apply    # home display + residual, no re-install
-python3 tools/tiltback-w620 --once     # residual only (if the picture is already right)
+tiltback --report          # four layers, no writes
+tiltback --save-home       # persist the measured tuple
+tiltback --install-follow  # one user unit
+tiltback --follow          # daemon (systemd only)
 ```
 
-On the tablet after the first install, `tiltback-w620` is on `PATH` via `~/.local/bin`.
-
-The Phase 0 C++/QML window is a separate binary. From a fast machine: `./scripts/build-alpine.sh`, then `scp build-alpine/tiltback` to the tablet. Root is currently `emergency_ro`, so stage at `/tmp/tiltback` and run with `WAYLAND_DISPLAY=wayland-0`. When the disk is writable: `~/.local/bin/tiltback` plus `data/org.tiltback.TiltBack.desktop` in `~/.local/share/applications/`.
-
-After a clean reboot, persisted `kwinoutputconfig.json` (`Rotated90`) and `kcminputrc` (`Orientation=8`) may already be enough for the picture. The service still has to re-stamp `R=8` if KWin drops it at login. If the desktop comes up on the wrong landscape, run the script again.
+After a clean reboot, persisted `kwinoutputconfig.json` (`Rotated90`) and `kcminputrc` (`Orientation=8`) may already be enough for the picture. The service still has to re-stamp `R=8` if KWin drops it at login. If the desktop comes up on the wrong landscape, apply Left + R=8 from the dashboard again.
 
 ## Type cover touchpad (separate from TiltBack)
 
@@ -78,16 +75,16 @@ This is a known Galaxy Book cover bug (same ID on the 10.6 and 12). Sleep works 
 
 ### What a real recovery can be
 
-Three layers, cheapest first. None of these belong in `tiltback-w620`.
+Three layers, cheapest first. None of these belong in TiltBack.
 
 1. **Manual, proven:** suspend and wake. That is the control experiment.
 
 2. **Userspace, root — tried, did not recover the pad.** After a live dead reconnect on this chassis:
 
-   - `USBDEVFS_RESET` (`tools/w620-cover-reset`): kernel `usb 1-5: reset full-speed USB device number N`. Same address, hid-multitouch stayed bound, no touch events.
+   - `USBDEVFS_RESET`: kernel `usb 1-5: reset full-speed USB device number N`. Same address, hid-multitouch stayed bound, no touch events.
    - sysfs `port/disable` 0/1 and hub `PORT_POWER` (VBUS): real disconnect and a new address (6→7, then 7→8). Same `descriptor type invalid, skip` and `failed to fetch feature 8` as a physical replug. Six-second evdev sample on Mouse + Touchpad + keyboard: **0 events**.
 
-   So a port reset is **not** what sleep does for this cover. `authorized` 0/1 is weaker still. A udev-on-add reset would only replay the dead hotplug. Leave the helper for re-tests; do not install it.
+   So a port reset is **not** what sleep does for this cover. `authorized` 0/1 is weaker still. A udev-on-add reset would only replay the dead hotplug. Do not ship a reset helper.
 
    hid-multitouch unbind/bind after the device has been up for minutes still fails feature 8 and does not start the stream.
 
@@ -101,4 +98,4 @@ Fn+F5 and the Touchpad KCM stay irrelevant: after hotplug there are no events to
 - No udev rules, no root, no `input` group.
 - No IMU / auto-rotate. There is no IIO device.
 - No cursor workaround.
-- Follow must not poll `kscreen-doctor`. One `tiltback-w620.service`. In-process D-Bus + directory watch + a 0.4s Get of two orientations. See above.
+- Follow must not poll `kscreen-doctor`. One `tiltback-follow.service`. In-process D-Bus + directory watch + a 0.4s Get of two orientations. See above.

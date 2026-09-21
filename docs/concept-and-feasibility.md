@@ -350,7 +350,7 @@ The interface is not a GNOME Settings page. It is a spatial tool: a live diagram
 - The app must feel native on Plasma *and* GNOME *and* Sway. A Qt Quick utility on GNOME is normal. A libadwaita utility on Plasma is a GNOME app wearing a costume, and libadwaita fights custom chrome.
 - KDE users who already trust the Drawing Tablet KCM will not be asked to learn a second visual language for the same problem space.
 - Shipping one fullscreen `ApplicationWindow` for calibration is a solved Qt pattern.
-- These chassis (W620 m3-7Y30, RT08WT Gemini Lake) choke on a Python session helper. The first follow daemon woke `kscreen-doctor` and a pile of `busctl` processes every 0.4s, three copies at once. The clinic and its follow helper ship as one C++ process speaking D-Bus in-process (`QDBus`). `tools/tiltback-w620` is a historical chassis recipe; Phase 4’s C++ `--follow` is the lock.
+- These chassis (W620 m3-7Y30, RT08WT Gemini Lake) choke on a Python session helper. The first follow daemon woke `kscreen-doctor` and a pile of `busctl` processes every 0.4s, three copies at once. The clinic and its follow helper ship as one C++ process speaking D-Bus in-process (`QDBus`). `--follow` is the lock.
 
 GTK4 remains a reasonable alternative if the project later wants a GNOME Circle aesthetic, or for a tiny Sway-only helper. It is the wrong default for a DE-agnostic clinic.
 
@@ -358,7 +358,7 @@ Language split:
 
 - **QML** for every screen a thumb touches.
 - **C++** for udev, evdev, D-Bus, DRM probe, and backends. CMake + Qt 6 (Quick, DBus, Gui).
-- No PySide6 MVP. Python in this repo is probe/recipe only.
+- No PySide6 MVP. No Python in the shipped tree.
 
 ## Architecture (when it is time to build)
 
@@ -475,8 +475,6 @@ On the tablet: `~/.local/bin/tiltback`, desktop file with a full `Exec=` path wh
 - No general udev / hwdb / `video=` export installer (Phase 7). GNOME clinic may stage `61-tiltback.rules` for a constant leftover R only.
 - No wizard. Phase 5 was implemented, then removed as more confusing than inverted dashboard controls.
 
-`tools/tiltback-w620` and the Python follow recipe remain in the tree as history. Do not run them beside C++ follow.
-
 ## Build order (as executed)
 
 Ship **Qt 6 Quick + C++** (CMake). No PySide6.
@@ -510,7 +508,7 @@ Done when the W620 can go `R=0` → `R=8` and back, on touch and stylus separate
 - Persist in compositor user config (`kwinoutputconfig.json` + `kcminputrc`)
 - Follow: KWin `PropertiesChanged`, directory watch on `kwinoutputconfig.json` (inode replace), and a cheap in-process Get of the two digitizer orientations. Never write `T` unless the user asked. Never spawn `kscreen-doctor` or `busctl` in a loop. One process.
 - W620 rule: `R(T) = 8` for all four poses, because KWin zeros `R` on every transform change.
-- `tools/tiltback-w620` becomes a profile of this helper, then goes away.
+- An early Python chassis helper did this work first; it is not in the tree. `--install-follow` still stops a leftover `tiltback-w620.service` if one is enabled.
 
 Done when Display Configuration’s 15s revert (or a manual pose change) leaves finger and pen on the picture **immediately**, not on a 30s safety timer.
 

@@ -78,7 +78,7 @@ Manual confirmation: `R=8` on both digitizers is correct for **all four** Plasma
 
 Follow is still required: KWin zeros `Orientation` whenever `T` changes, including the 15s Display Configuration revert. The helper’s job on this chassis is to **re-stamp `R=8`**, not to pick a per-pose matrix.
 
-Wrap-up and the rerunnable script: [w620-runbook.md](w620-runbook.md), `tools/tiltback-w620`.
+Wrap-up and how to re-apply: [w620-runbook.md](w620-runbook.md). The live binary is `tiltback` (`--save-home`, `--install-follow`).
 
 ## Hypothesis this tests
 
@@ -93,9 +93,9 @@ The failure mode to watch: KWin might start applying the new output transform to
 Revert, if needed:
 
 ```sh
-export XDG_RUNTIME_DIR=/run/user/10000
+export XDG_RUNTIME_DIR=/run/user/$(id -u)
 export WAYLAND_DISPLAY=wayland-0
-export DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/10000/bus
+export DBUS_SESSION_BUS_ADDRESS=unix:path=$XDG_RUNTIME_DIR/bus
 kscreen-doctor output.eDP-1.rotation.right
 ```
 
@@ -108,4 +108,4 @@ Not a GUI. A read-only probe that prints this four-layer table on the machine th
 - Upstream `RIGHT_UP` vs this hold: the kernel quirk is live and still implies the other landscape. Userspace overrides it; we did not patch the quirk.
 - Missing EDID (`eDP-1-unknown`, size 0×0 mm).
 - No IIO accelerometer; `autoRotation=InTabletMode` cannot help.
-- Type cover touchpad “detected but dead” after a reattach (2026-09-21): KWin still had it enabled at `R=0`; USB instance had changed. Re-check after reboot with `tiltback-w620 --status`. Not part of the digitizer residual.
+- Type cover touchpad “detected but dead” after a reattach (2026-09-21): KWin still had it enabled at `R=0`; USB instance had changed. Re-check after reboot with `tiltback --report`. Not part of the digitizer residual.

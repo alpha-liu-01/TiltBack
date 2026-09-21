@@ -6,3 +6,6 @@ CMakeUserPresets.json
 .cache/
 *.user
 /.cursor/
+/tools/
+__pycache__/
+*.pyc
