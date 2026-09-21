@@ -103,11 +103,19 @@ install(FILES
         DESTINATION lib/systemd/system-preset)
 # Plasma Login Manager greeter is a systemd --user session. KWin zeros
 # digitizer Orientation when it applies the copied T; this unit restamps R.
-# Install the unit twice (regular files). A repo wants/ symlink is rewritten
-# by rpmbuild to tiltback-<ver>/../... and never starts under plasmalogin.
+# Fedora systemd 258 ignores a regular file in *.wants/ ("not a symlink").
+# A repo wants/ symlink is rewritten by cmake/rpm to tiltback-<ver>/../...
+# Drop-in Wants= is the reliable hook; also create the relative wants link
+# at install time so the target is literally ../tiltback-greeter-follow.service.
 install(FILES data/systemd/user/tiltback-greeter-follow.service
         DESTINATION lib/systemd/user)
-install(FILES data/systemd/user/tiltback-greeter-follow.service
-        DESTINATION lib/systemd/user/plasma-login-wayland.target.wants)
+install(FILES data/systemd/user/plasma-login-wayland.target.d/tiltback-greeter-follow.conf
+        DESTINATION lib/systemd/user/plasma-login-wayland.target.d)
+install(CODE "
+  set(_wants \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/lib/systemd/user/plasma-login-wayland.target.wants\")
+  file(MAKE_DIRECTORY \"\${_wants}\")
+  file(CREATE_LINK \"../tiltback-greeter-follow.service\"
+       \"\${_wants}/tiltback-greeter-follow.service\" SYMBOLIC)
+")
 install(FILES data/tmpfiles.d/tiltback.conf
         DESTINATION lib/tmpfiles.d)

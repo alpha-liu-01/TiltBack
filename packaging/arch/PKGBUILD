@@ -4,7 +4,7 @@
 pkgbase=tiltback
 pkgname=(tiltback tiltback-gnome)
 pkgver=0.0.0
-pkgrel=1
+pkgrel=2
 pkgdesc="Tablet orientation clinic"
 arch=('x86_64' 'aarch64')
 url="https://github.com/alpha-liu-01/TiltBack"
@@ -56,6 +56,7 @@ package_tiltback-gnome() {
 	rm -f "$pkgdir/usr/lib/systemd/system/tiltback-greeter.path"
 	rm -f "$pkgdir/usr/lib/systemd/user/tiltback-greeter-follow.service"
 	rm -rf "$pkgdir/usr/lib/systemd/user/plasma-login-wayland.target.wants"
+	rm -rf "$pkgdir/usr/lib/systemd/user/plasma-login-wayland.target.d"
 	rm -f "$pkgdir/usr/lib/systemd/system-preset/80-tiltback.preset"
 	rm -f "$pkgdir/usr/lib/tmpfiles.d/tiltback.conf"
 }

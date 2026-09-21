@@ -6,7 +6,7 @@
 
 Name:           tiltback
 Version:        0.0.0
-Release:        1%{?dist}
+Release:        2%{?dist}
 Summary:        Tablet orientation clinic
 License:        GPL-3.0-or-later
 URL:            https://github.com/alpha-liu-01/TiltBack
@@ -104,6 +104,7 @@ fi
 %{_unitdir}/tiltback-greeter.service
 %{_unitdir}/tiltback-greeter.path
 %{_userunitdir}/tiltback-greeter-follow.service
+%{_userunitdir}/plasma-login-wayland.target.d/tiltback-greeter-follow.conf
 %{_userunitdir}/plasma-login-wayland.target.wants/tiltback-greeter-follow.service
 %{_prefix}/lib/systemd/system-preset/80-tiltback.preset
 %{_tmpfilesdir}/tiltback.conf
