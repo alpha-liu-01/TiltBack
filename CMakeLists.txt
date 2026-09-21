@@ -103,9 +103,11 @@ install(FILES
         DESTINATION lib/systemd/system-preset)
 # Plasma Login Manager greeter is a systemd --user session. KWin zeros
 # digitizer Orientation when it applies the copied T; this unit restamps R.
+# Install the unit twice (regular files). A repo wants/ symlink is rewritten
+# by rpmbuild to tiltback-<ver>/../... and never starts under plasmalogin.
 install(FILES data/systemd/user/tiltback-greeter-follow.service
         DESTINATION lib/systemd/user)
-install(FILES data/systemd/user/plasma-login-wayland.target.wants/tiltback-greeter-follow.service
+install(FILES data/systemd/user/tiltback-greeter-follow.service
         DESTINATION lib/systemd/user/plasma-login-wayland.target.wants)
 install(FILES data/tmpfiles.d/tiltback.conf
         DESTINATION lib/tmpfiles.d)
