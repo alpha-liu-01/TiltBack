@@ -47,6 +47,15 @@ target_link_libraries(tiltback PRIVATE
     ${LIBDRM_LIBRARIES}
 )
 
+set_source_files_properties(
+    data/icons/hicolor/512x512/apps/org.tiltback.TiltBack.png
+    PROPERTIES QT_RESOURCE_ALIAS org.tiltback.TiltBack.png)
+qt_add_resources(tiltback "app_icon"
+    PREFIX "/icons"
+    FILES data/icons/hicolor/512x512/apps/org.tiltback.TiltBack.png)
+
 install(TARGETS tiltback RUNTIME DESTINATION bin)
 install(FILES data/org.tiltback.TiltBack.desktop
         DESTINATION share/applications)
+install(DIRECTORY data/icons/hicolor
+        DESTINATION share/icons)

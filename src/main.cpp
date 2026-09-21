@@ -4,6 +4,7 @@
 
 #include <QCoreApplication>
 #include <QGuiApplication>
+#include <QIcon>
 #include <QQmlApplicationEngine>
 #include <cstdio>
 #include <cstring>
@@ -63,6 +64,7 @@ int main(int argc, char *argv[])
     QGuiApplication app(argc, argv);
     setAppIdentity(app);
     app.setDesktopFileName(QStringLiteral("org.tiltback.TiltBack"));
+    app.setWindowIcon(QIcon(QStringLiteral(":/icons/org.tiltback.TiltBack.png")));
 
     if (app.arguments().contains(QStringLiteral("--report"))) {
         ClinicModel clinic;
