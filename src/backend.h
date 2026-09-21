@@ -45,6 +45,7 @@ public:
     virtual bool stampFollow(const HomeProfile &home, QString *error) = 0;
 
     virtual void watchPose() = 0;
+    virtual void setPoseWatchEnabled(bool enabled) { Q_UNUSED(enabled); }
     virtual bool canSoftwareCursor() const { return false; }
     virtual bool commitOutput(QString *error)
     {

@@ -141,7 +141,7 @@ Out of scope remains the same: TiltBack is not a compositor and not a replacemen
 
 ## Proof on the W620 (2026-09-21)
 
-The live recipe is C++ `tiltback --follow` (one systemd `--user` `tiltback-follow.service`). Do not also Plasma-autostart it.
+The live recipe is C++ `tiltback --follow` (one systemd `--user` `tiltback-follow.service`). Do not also Plasma-autostart it. Follow must not `Set orientationDBus` while KWin is applying T after resume (`applyScreenToDevice`); that race aborted KWin 6.7 on the W620.
 
 The first helper was Python: it polled `kscreen-doctor -j` every 0.4s and walked every KWin input with `busctl` every 2s. Three copies (unit + two `.desktop` files) produced the ~80% CPU spike. Follow now does that work in-process: D-Bus Gets on the two digitizers, a directory watch (KWin replaces the `kwinoutputconfig.json` inode), and a 0.4s tick because KWin often zeros `R` without a notify.
 

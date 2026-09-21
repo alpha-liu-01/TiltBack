@@ -221,7 +221,12 @@ bool KwinBackend::stampFollow(const HomeProfile &home, QString *error)
             return true;
         bool ok = false;
         const int now = getOrientation(dev.path, &ok);
-        if (ok && now == want)
+        if (!ok) {
+            if (error)
+                *error = QStringLiteral("orientation Get failed");
+            return false;
+        }
+        if (now == want)
             return true;
         return setOrientation(dev.path, want, error);
     };
@@ -242,7 +247,15 @@ void KwinBackend::watchPose()
                 QStringLiteral("/org/kde/KWin/InputDevice"),
                 QStringLiteral("org.kde.KWin.InputDeviceManager"),
                 QStringLiteral("deviceRemoved"), this, SIGNAL(devicesChanged()));
-    m_tick->start();
+    setPoseWatchEnabled(true);
+}
+
+void KwinBackend::setPoseWatchEnabled(bool enabled)
+{
+    if (enabled)
+        m_tick->start();
+    else
+        m_tick->stop();
 }
 
 void KwinBackend::onTick()

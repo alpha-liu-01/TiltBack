@@ -25,6 +25,14 @@ const char InputIface[] = "org.kde.KWin.InputDevice";
 const char MgrIface[] = "org.kde.KWin.InputDeviceManager";
 const char PropsIface[] = "org.freedesktop.DBus.Properties";
 const char Prefix[] = "/org/kde/KWin/InputDevice";
+// Default QDBus timeout is 25s. A hung KWin on resume would freeze follow
+// (and pile Set orientationDBus onto libinput-connection → bad_alloc).
+constexpr int kInputDbusMs = 800;
+
+QDBusMessage callKwin(const QDBusMessage &msg)
+{
+    return QDBusConnection::sessionBus().call(msg, QDBus::Block, kInputDbusMs);
+}
 
 QString hexId(quint32 value)
 {
@@ -38,6 +46,7 @@ QStringList sysNames()
         return {};
     QDBusInterface mgr(QString::fromLatin1(KWin), QString::fromLatin1(Prefix),
                        QString::fromLatin1(PropsIface), bus);
+    mgr.setTimeout(kInputDbusMs);
     const QDBusReply<QDBusVariant> reply = mgr.call(
         QStringLiteral("Get"),
         QString::fromLatin1(MgrIface),
@@ -54,12 +63,11 @@ QStringList sysNames()
 
 QVariantMap getAll(const QString &path)
 {
-    QDBusConnection bus = QDBusConnection::sessionBus();
     QDBusMessage msg = QDBusMessage::createMethodCall(
         QString::fromLatin1(KWin), path, QString::fromLatin1(PropsIface),
         QStringLiteral("GetAll"));
     msg << QString::fromLatin1(InputIface);
-    const QDBusMessage reply = bus.call(msg);
+    const QDBusMessage reply = callKwin(msg);
     if (reply.type() == QDBusMessage::ErrorMessage || reply.arguments().isEmpty())
         return {};
     const QVariant first = reply.arguments().at(0);
@@ -231,14 +239,13 @@ bool setOrientation(const QString &path, int r, QString *error)
             *error = QStringLiteral("empty InputDevice path");
         return false;
     }
-    QDBusConnection bus = QDBusConnection::sessionBus();
     QDBusMessage msg = QDBusMessage::createMethodCall(
         QString::fromLatin1(KWin), path, QString::fromLatin1(PropsIface),
         QStringLiteral("Set"));
     msg << QString::fromLatin1(InputIface)
         << QStringLiteral("orientationDBus")
         << QVariant::fromValue(QDBusVariant(QVariant::fromValue(qint32(r))));
-    const QDBusMessage reply = bus.call(msg);
+    const QDBusMessage reply = callKwin(msg);
     if (reply.type() == QDBusMessage::ErrorMessage) {
         if (error)
             *error = reply.errorMessage();
@@ -254,12 +261,11 @@ int getOrientation(const QString &path, bool *ok)
             *ok = false;
         return 0;
     }
-    QDBusConnection bus = QDBusConnection::sessionBus();
     QDBusMessage msg = QDBusMessage::createMethodCall(
         QString::fromLatin1(KWin), path, QString::fromLatin1(PropsIface),
         QStringLiteral("Get"));
     msg << QString::fromLatin1(InputIface) << QStringLiteral("orientationDBus");
-    const QDBusMessage reply = bus.call(msg);
+    const QDBusMessage reply = callKwin(msg);
     if (reply.type() == QDBusMessage::ErrorMessage || reply.arguments().isEmpty()) {
         if (ok)
             *ok = false;

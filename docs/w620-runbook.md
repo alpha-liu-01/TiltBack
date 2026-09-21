@@ -44,6 +44,7 @@ The current recipe (`tiltback --follow`):
 - No `kscreen-doctor` and no `busctl` in the follow loop. In-process `QDBus` `Get`/`Set` on the two named digitizers only.
 - Wake sources: KWin `PropertiesChanged`, a **directory** watch on `~/.config` / `~/.local/share/kscreen` (KWin replaces the `kwinoutputconfig.json` inode; a watch on the file itself goes silent), and a 0.4s tick that only Gets `orientationDBus` on the cached stylus and touch paths. If `R` is already 8, the tick does nothing else.
 - The 0.4s tick exists because KWin often zeros `R` in memory **without** a D-Bus notify, and because a read-only root (`emergency_ro` after an `sda` write error on 2026-09-21) means the config file is never rewritten. Without the tick, follow waited 30s for a “safety” restamp. The tick is the delay killer; it is not the old poller.
+- Sleep: `PrepareForSleep` stops the tick and all Gets/Sets. After resume, follow waits 2.5s (and skips `Set` if `Get` fails) so it does not race KWin `applyScreenToDevice`. Fedora 44 KWin 6.7 `setOrientation` from D-Bus during that apply aborted `libinput-connection` (`std::bad_alloc`), which killed the compositor — every key including power and volume — until `kwin_wayland_wrapper` restarted. Input D-Bus calls use an 800ms timeout, not the 25s default.
 
 If home is emergency-RO, stage the binary at `/tmp/tiltback` and use the runtime systemd drop-in; `--install-follow` already knows that path.
 

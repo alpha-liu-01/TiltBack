@@ -6,7 +6,7 @@
 
 Name:           tiltback
 Version:        0.0.0
-Release:        2%{?dist}
+Release:        3%{?dist}
 Summary:        Tablet orientation clinic
 License:        GPL-3.0-or-later
 URL:            https://github.com/alpha-liu-01/TiltBack

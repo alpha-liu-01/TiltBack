@@ -34,6 +34,7 @@ public:
     int getResidual(const Digitizer &dev, bool *ok) override;
     bool stampFollow(const HomeProfile &home, QString *error) override;
     void watchPose() override;
+    void setPoseWatchEnabled(bool enabled) override;
 
 private slots:
     void onTick();

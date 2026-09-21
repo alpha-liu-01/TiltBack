@@ -6,6 +6,9 @@
 #include <QFileSystemWatcher>
 #include <QStringList>
 #include <QTimer>
+#include <QtDBus/QDBusConnection>
+#include <QtDBus/QDBusInterface>
+#include <QtDBus/QDBusReply>
 #include <cstdio>
 
 namespace TiltBack {
@@ -37,14 +40,18 @@ FollowEngine::FollowEngine(QObject *parent)
     , m_watcher(new QFileSystemWatcher(this))
     , m_debounce(new QTimer(this))
     , m_delayed(new QTimer(this))
+    , m_quiet(new QTimer(this))
 {
     m_debounce->setSingleShot(true);
     m_debounce->setInterval(120);
     connect(m_debounce, &QTimer::timeout, this, &FollowEngine::onDebounce);
 
     m_delayed->setSingleShot(true);
-    m_delayed->setInterval(400);
+    m_delayed->setInterval(1500);
     connect(m_delayed, &QTimer::timeout, this, &FollowEngine::onDelayedStamp);
+
+    m_quiet->setSingleShot(true);
+    connect(m_quiet, &QTimer::timeout, this, &FollowEngine::onQuietEnd);
 
     connect(m_watcher, &QFileSystemWatcher::directoryChanged, this, &FollowEngine::onDirChanged);
     connect(m_backend, &OrientationBackend::poseChanged, this, &FollowEngine::onPoseChanged);
@@ -77,6 +84,7 @@ int FollowEngine::start()
         logLine(QStringLiteral("follow: finger not resolved"));
     if (!m_pen.ok)
         logLine(QStringLiteral("follow: pen not resolved"));
+    bindSleepSignals();
     m_backend->watchPose();
     stamp(QStringLiteral("startup"));
     QTimer::singleShot(2000, this, [this]() { stamp(QStringLiteral("startup-retry")); });
@@ -85,6 +93,29 @@ int FollowEngine::start()
                 .arg(m_home.rTouch)
                 .arg(m_home.rPen));
     return 0;
+}
+
+void FollowEngine::bindSleepSignals()
+{
+    QDBusConnection sys = QDBusConnection::systemBus();
+    if (!sys.connect(QStringLiteral("org.freedesktop.login1"),
+                     QStringLiteral("/org/freedesktop/login1"),
+                     QStringLiteral("org.freedesktop.login1.Manager"),
+                     QStringLiteral("PrepareForSleep"), this,
+                     SLOT(onPrepareForSleep(bool)))) {
+        logLine(QStringLiteral("follow: PrepareForSleep not connected"));
+        return;
+    }
+    QDBusInterface props(QStringLiteral("org.freedesktop.login1"),
+                         QStringLiteral("/org/freedesktop/login1"),
+                         QStringLiteral("org.freedesktop.DBus.Properties"), sys);
+    props.setTimeout(800);
+    const QDBusReply<QVariant> reply =
+        props.call(QStringLiteral("Get"),
+                   QStringLiteral("org.freedesktop.login1.Manager"),
+                   QStringLiteral("PreparingForSleep"));
+    if (reply.isValid() && reply.value().toBool())
+        onPrepareForSleep(true);
 }
 
 void FollowEngine::resolveTargets()
@@ -103,21 +134,42 @@ void FollowEngine::resolveTargets()
     m_pen = m_backend->resolve(DigitizerClass::Pen, wantPen.ok ? &wantPen : nullptr);
 }
 
+void FollowEngine::quietFor(int ms)
+{
+    if (ms <= 0)
+        return;
+    const int left = m_quiet->isActive() ? m_quiet->remainingTime() : 0;
+    if (ms > left)
+        m_quiet->start(ms);
+}
+
+bool FollowEngine::isHeld() const
+{
+    return m_asleep || clinicHoldActive() || m_quiet->isActive();
+}
+
 void FollowEngine::schedule(const QString &reason)
 {
+    if (isHeld())
+        return;
     m_reason = reason;
     m_debounce->start();
 }
 
 void FollowEngine::stamp(const QString &reason)
 {
-    if (clinicHoldActive())
+    if (m_asleep || clinicHoldActive())
+        return;
+    if (m_quiet->isActive())
         return;
     if (!m_finger.ok || !m_pen.ok)
         resolveTargets();
     QString err;
-    if (!m_backend->stampFollow(m_home, &err))
+    if (!m_backend->stampFollow(m_home, &err)) {
         logLine(QStringLiteral("follow %1 stamp failed: %2").arg(reason, err));
+        quietFor(2000);
+        m_backend->setPoseWatchEnabled(false);
+    }
 }
 
 void FollowEngine::onPoseChanged()
@@ -127,15 +179,24 @@ void FollowEngine::onPoseChanged()
 
 void FollowEngine::onDevicesChanged()
 {
-    resolveTargets();
-    schedule(QStringLiteral("device list"));
+    if (m_asleep) {
+        quietFor(2500);
+        return;
+    }
+    // Resume and hotplug both re-enumerate; do not GetAll/Set while KWin
+    // applyScreenToDevice is still running (Fedora 44 KWin 6.7 bad_alloc).
+    quietFor(1500);
+    m_backend->setPoseWatchEnabled(false);
 }
 
 void FollowEngine::onDirChanged(const QString &path)
 {
     reloadHomeIfChanged();
     if (path.endsWith(QLatin1String("kscreen")) || path.endsWith(QLatin1String(".config"))) {
-        schedule(QStringLiteral("output config"));
+        if (m_asleep)
+            return;
+        quietFor(1500);
+        m_backend->setPoseWatchEnabled(false);
         m_delayed->start();
     }
 }
@@ -143,6 +204,32 @@ void FollowEngine::onDirChanged(const QString &path)
 void FollowEngine::onDebounce()
 {
     stamp(m_reason.isEmpty() ? QStringLiteral("debounce") : m_reason);
+}
+
+void FollowEngine::onPrepareForSleep(bool sleeping)
+{
+    if (sleeping) {
+        m_asleep = true;
+        m_debounce->stop();
+        m_delayed->stop();
+        m_quiet->stop();
+        m_backend->setPoseWatchEnabled(false);
+        logLine(QStringLiteral("follow sleep hold"));
+        return;
+    }
+    m_asleep = false;
+    m_backend->setPoseWatchEnabled(false);
+    quietFor(2500);
+    logLine(QStringLiteral("follow resume quiet"));
+}
+
+void FollowEngine::onQuietEnd()
+{
+    if (m_asleep)
+        return;
+    m_backend->setPoseWatchEnabled(true);
+    resolveTargets();
+    stamp(QStringLiteral("quiet end"));
 }
 
 void FollowEngine::reloadHomeIfChanged()
