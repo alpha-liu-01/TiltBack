@@ -88,11 +88,18 @@ install(DIRECTORY data/icons/hicolor
 install(PROGRAMS data/tiltback-rebind-hid.sh
         DESTINATION ${CMAKE_INSTALL_LIBEXECDIR}/tiltback
         RENAME rebind-hid.sh)
+install(PROGRAMS data/tiltback-install-greeter.sh
+        DESTINATION ${CMAKE_INSTALL_LIBEXECDIR}/tiltback
+        RENAME install-greeter.sh)
 install(FILES
             data/systemd/tiltback-rebind.service
             data/systemd/tiltback-rebind.path
+            data/systemd/tiltback-greeter.service
+            data/systemd/tiltback-greeter.path
         DESTINATION lib/systemd/system)
-install(FILES data/systemd/80-tiltback.preset
+install(FILES
+            data/systemd/80-tiltback.preset
+            data/systemd/81-tiltback-gnome.preset
         DESTINATION lib/systemd/system-preset)
 install(FILES data/tmpfiles.d/tiltback.conf
         DESTINATION lib/tmpfiles.d)

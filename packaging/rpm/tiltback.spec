@@ -69,10 +69,20 @@ for u in /home/*/.config/systemd/user/tiltback-follow.service; do
 	[ -f "$u" ] || continue
 	sed -i 's|/home/[^/]*/.local/bin/tiltback|/usr/bin/tiltback|g' "$u" 2>/dev/null || :
 done
+if [ -d /run/systemd/system ]; then
+	systemd-tmpfiles --create %{_prefix}/lib/tmpfiles.d/tiltback.conf >/dev/null 2>&1 || :
+	%systemd_post tiltback-greeter.service tiltback-greeter.path
+	systemctl enable --now tiltback-greeter.service tiltback-greeter.path >/dev/null 2>&1 || :
+fi
+
+%preun
+%systemd_preun tiltback-greeter.service tiltback-greeter.path
+
+%postun
+%systemd_postun tiltback-greeter.service tiltback-greeter.path
 
 %post gnome
 if [ -d /run/systemd/system ]; then
-	systemd-tmpfiles --create %{_prefix}/lib/tmpfiles.d/tiltback.conf >/dev/null 2>&1 || :
 	%systemd_post tiltback-rebind.path
 	systemctl enable --now tiltback-rebind.path >/dev/null 2>&1 || :
 fi
@@ -89,10 +99,14 @@ fi
 %{_bindir}/tiltback
 %{_datadir}/applications/org.tiltback.TiltBack.desktop
 %{_datadir}/icons/hicolor/*/apps/org.tiltback.TiltBack.png
+%{_libexecdir}/tiltback/install-greeter.sh
+%{_unitdir}/tiltback-greeter.service
+%{_unitdir}/tiltback-greeter.path
+%{_prefix}/lib/systemd/system-preset/80-tiltback.preset
+%{_tmpfilesdir}/tiltback.conf
 
 %files gnome
 %{_libexecdir}/tiltback/rebind-hid.sh
 %{_unitdir}/tiltback-rebind.service
 %{_unitdir}/tiltback-rebind.path
-%{_prefix}/lib/systemd/system-preset/80-tiltback.preset
-%{_tmpfilesdir}/tiltback.conf
+%{_prefix}/lib/systemd/system-preset/81-tiltback-gnome.preset

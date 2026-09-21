@@ -15,4 +15,10 @@ for u in /home/*/.config/systemd/user/tiltback-follow.service; do
 	[ -f "$u" ] || continue
 	sed -i 's|/home/[^/]*/.local/bin/tiltback|/usr/bin/tiltback|g' "$u" 2>/dev/null || true
 done
+if [ -d /run/systemd/system ]; then
+	systemd-tmpfiles --create /usr/lib/tmpfiles.d/tiltback.conf 2>/dev/null || true
+	systemctl daemon-reload 2>/dev/null || true
+	systemctl preset tiltback-greeter.service tiltback-greeter.path 2>/dev/null || true
+	systemctl enable --now tiltback-greeter.service tiltback-greeter.path 2>/dev/null || true
+fi
 exit 0

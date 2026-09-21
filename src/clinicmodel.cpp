@@ -426,6 +426,7 @@ void ClinicModel::keepPicture()
         return;
     QString err;
     m_backend->commitOutput(&err);
+    TiltBack::requestInstallGreeter();
     stopPictureCountdown();
     refresh();
     if (!err.isEmpty()) {
@@ -762,6 +763,8 @@ void ClinicModel::saveHome()
         m_persistLine += QStringLiteral(" — home.json: %1").arg(homeErr);
     else if (TiltBack::homeProfilePath().startsWith(QLatin1String("/tmp")))
         m_persistLine += QStringLiteral(" — home.json in /tmp");
+    if (homeOk)
+        TiltBack::requestInstallGreeter();
     emit changed();
 }
 

@@ -17,10 +17,17 @@ _leftover_clinic() {
 	done
 }
 
+_enable_greeter() {
+	if [ -f /usr/lib/systemd/system/tiltback-greeter.service ] && [ -d /run/systemd/system ]; then
+		systemd-tmpfiles --create /usr/lib/tmpfiles.d/tiltback.conf 2>/dev/null || true
+		systemctl daemon-reload 2>/dev/null || true
+		systemctl enable --now tiltback-greeter.service tiltback-greeter.path 2>/dev/null || true
+	fi
+}
+
 _enable_rebind() {
 	# Only when tiltback-gnome dropped the path unit.
 	if [ -f /usr/lib/systemd/system/tiltback-rebind.path ] && [ -d /run/systemd/system ]; then
-		systemd-tmpfiles --create /usr/lib/tmpfiles.d/tiltback.conf 2>/dev/null || true
 		systemctl daemon-reload 2>/dev/null || true
 		systemctl enable --now tiltback-rebind.path 2>/dev/null || true
 	fi
@@ -28,17 +35,24 @@ _enable_rebind() {
 
 post_install() {
 	_leftover_clinic
+	_enable_greeter
 	_enable_rebind
 }
 
 post_upgrade() {
 	_leftover_clinic
+	_enable_greeter
 	_enable_rebind
 }
 
 post_remove() {
-	if [ ! -f /usr/lib/systemd/system/tiltback-rebind.path ] && [ -d /run/systemd/system ]; then
-		systemctl disable --now tiltback-rebind.path 2>/dev/null || true
+	if [ -d /run/systemd/system ]; then
+		if [ ! -f /usr/lib/systemd/system/tiltback-greeter.service ]; then
+			systemctl disable --now tiltback-greeter.service tiltback-greeter.path 2>/dev/null || true
+		fi
+		if [ ! -f /usr/lib/systemd/system/tiltback-rebind.path ]; then
+			systemctl disable --now tiltback-rebind.path 2>/dev/null || true
+		fi
 		systemctl daemon-reload 2>/dev/null || true
 	fi
 }

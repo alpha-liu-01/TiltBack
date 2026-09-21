@@ -82,7 +82,7 @@ tiltback --install-follow
 systemctl --user enable --now tiltback-follow.service
 ```
 
-`--install-follow` prefers `/usr/bin/tiltback` when that file exists. The GUI process must not also run `--follow`.
+`--install-follow` prefers `/usr/bin/tiltback` when that file exists. The GUI process must not also run `--follow`. After a `/usr` install, `tiltback --install-greeter` copies the last home into GDM / SDDM / Plasma Login Manager so the password OSK matches (see [docs/greeter-and-boot.md](docs/greeter-and-boot.md)).
 
 Other entry points: `tiltback --report`, `tiltback --save-home`. Never `pkill -f tiltback` (it matches SSH).
 
@@ -95,6 +95,7 @@ Other entry points: `tiltback --report`, `tiltback --save-home`. Never `pkill -f
 | [docs/home-offset-and-follow.md](docs/home-offset-and-follow.md) | Home tuple and why follow exists |
 | [docs/case-galaxy-book-w620.md](docs/case-galaxy-book-w620.md) | First clinic case (W620 on Plasma) |
 | [docs/w620-runbook.md](docs/w620-runbook.md) | Measured W620 values and how to re-apply |
+| [docs/greeter-and-boot.md](docs/greeter-and-boot.md) | Login screen vs Plymouth; why greeter copy does not replace the clinic |
 
 ## License
 

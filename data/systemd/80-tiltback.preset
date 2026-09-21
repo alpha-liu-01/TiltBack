@@ -1,3 +1,4 @@
 # pmOS / systemd 99-default.preset is "disable *". Without this, the
 # post-install enable is undone by postmarketos-base-systemd's preset trigger.
-enable tiltback-rebind.path
+enable tiltback-greeter.service
+enable tiltback-greeter.path

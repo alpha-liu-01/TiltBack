@@ -474,6 +474,7 @@ On the tablet: `~/.local/bin/tiltback`, desktop file with a full `Exec=` path wh
 - No Phosh/phoc or wlroots apply path. GNOME/Mutter Picture apply exists. GNOME leftover residual is a constant udev matrix plus HID rebind (not a GSettings key).
 - No software-cursor switch. Arrow is diagnose-only (`SWCursor` would need an Xorg restart).
 - No general udev / hwdb / `video=` export installer (Phase 7). GNOME clinic may stage `61-tiltback.rules` for a constant leftover R only.
+- Greeter persist is a system oneshot (`tiltback-greeter.service`) that copies clinic T/R into GDM / SDDM / Plasma Login Manager. Plymouth / `video=` is still out — see [greeter-and-boot.md](greeter-and-boot.md).
 - No wizard. Phase 5 was implemented, then removed as more confusing than inverted dashboard controls.
 
 ## Build order (as executed)

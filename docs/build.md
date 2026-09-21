@@ -68,7 +68,7 @@ tiltback --install-follow
 systemctl --user enable --now tiltback-follow.service
 ```
 
-`--install-follow` writes `/usr/bin/tiltback --follow` when that file exists, otherwise the binary that ran the command (`~/.local/bin/tiltback` on a prefix install). Follow restamps residuals only. The GUI process must not also run `--follow`.
+`--install-follow` writes `/usr/bin/tiltback --follow` when that file exists, otherwise the binary that ran the command (`~/.local/bin/tiltback` on a prefix install). Follow restamps residuals only. The GUI process must not also run `--follow`. `tiltback --install-greeter` updates the login-screen copy (needs the `/usr` helper and `tiltback-greeter.path`).
 
 The RO-home `/tmp` + runtime systemd drop-in path is a postmarketOS emergency, not the default. A writable `~/.config/systemd/user` is enough.
 
@@ -91,10 +91,12 @@ On GNOME that local desktop will steal the app menu from a later `/usr` apk. Pre
 
 | Package | Contents | Runtime |
 | --- | --- | --- |
-| `tiltback` | `/usr/bin/tiltback`, `org.tiltback.TiltBack.desktop`, hicolor icons | `qt6-qtbase` `qt6-qtdeclarative` `qt6-qtwayland` |
-| `tiltback-gnome` | `/usr/libexec/tiltback/rebind-hid.sh`, `tiltback-rebind.path` / `.service`, `80-tiltback.preset`, tmpfiles.d | pulled by `install_if` |
+| `tiltback` | `/usr/bin/tiltback`, desktop + icons, `/usr/libexec/tiltback/install-greeter.sh`, `tiltback-greeter.service` / `.path`, `80-tiltback.preset`, tmpfiles.d | `qt6-qtbase` `qt6-qtdeclarative` `qt6-qtwayland` |
+| `tiltback-gnome` | `/usr/libexec/tiltback/rebind-hid.sh`, `tiltback-rebind.path` / `.service`, `81-tiltback-gnome.preset` | pulled by `install_if` |
 
-`tiltback-gnome` uses Alpine `install_if="tiltback gnome-shell systemd"`. `apk add tiltback` on a GNOME + systemd machine (postmarketOS GNOME) pulls the helper. Post-install creates `/run/tiltback` (tmpfiles `1777`), enables `tiltback-rebind.path`, and ships `80-tiltback.preset` (`enable tiltback-rebind.path`) so `postmarketos-base-systemd`’s `disable *` preset does not undo it. That is the packaged form of:
+The main package post-install creates `/run/tiltback` (tmpfiles `1777`) and enables `tiltback-greeter.service` / `.path` (`80-tiltback.preset`) so the login OSK gets the last clinic T/R before the display manager starts. See [greeter-and-boot.md](greeter-and-boot.md). `tiltback --install-greeter` and Save home touch `/run/tiltback/greeter-request`.
+
+`tiltback-gnome` uses Alpine `install_if="tiltback gnome-shell systemd"`. `apk add tiltback` on a GNOME + systemd machine (postmarketOS GNOME) pulls the helper. Post-install enables `tiltback-rebind.path` and ships `81-tiltback-gnome.preset` (`enable tiltback-rebind.path`) so `postmarketos-base-systemd`’s `disable *` preset does not undo it. That is the packaged form of:
 
 ```sh
 sudo cp ~/.config/tiltback/tiltback-rebind.service /etc/systemd/system/
@@ -111,7 +113,7 @@ The packaged path watches `/run/tiltback/rebind-request` (world-writable after t
 - rename `~/.local/bin/tiltback` to `tiltback.pre-apk`
 - rewrite `~/.config/systemd/user/tiltback-follow.service` `ExecStart` to `/usr/bin/tiltback`
 
-Every family ships the same helper in `tiltback-gnome`: `/usr/libexec/tiltback/rebind-hid.sh`, `tiltback-rebind.path` / `.service`, `80-tiltback.preset`, and tmpfiles.d. Post-install creates `/run/tiltback` and enables the path unit so a residual apply does not prompt for a password. The main package also clears a leftover `~/.local` clinic desktop / binary (renamed `tiltback.pre-apk` on Alpine, `tiltback.pre-pkg` elsewhere) and rewrites follow `ExecStart` to `/usr/bin/tiltback`.
+Every family ships greeter persist on the **main** package (`install-greeter.sh` + `tiltback-greeter.*`). The GNOME leftover rebind stays in `tiltback-gnome`. The main package also clears a leftover `~/.local` clinic desktop / binary (renamed `tiltback.pre-apk` on Alpine, `tiltback.pre-pkg` elsewhere) and rewrites follow `ExecStart` to `/usr/bin/tiltback`.
 
 | Family | How the GNOME helper attaches | Enable the path unit | Build |
 | --- | --- | --- | --- |

@@ -37,11 +37,10 @@ package_tiltback() {
 	optdepends=('tiltback-gnome: passwordless Mutter HID rebind on GNOME')
 
 	DESTDIR="$pkgdir" cmake --install build
-	rm -rf "$pkgdir/usr/libexec/tiltback"
+	rm -f "$pkgdir/usr/libexec/tiltback/rebind-hid.sh"
 	rm -f "$pkgdir/usr/lib/systemd/system/tiltback-rebind.service"
 	rm -f "$pkgdir/usr/lib/systemd/system/tiltback-rebind.path"
-	rm -f "$pkgdir/usr/lib/systemd/system-preset/80-tiltback.preset"
-	rm -f "$pkgdir/usr/lib/tmpfiles.d/tiltback.conf"
+	rm -f "$pkgdir/usr/lib/systemd/system-preset/81-tiltback-gnome.preset"
 	install -Dm644 "$_repodir/LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
 }
 
@@ -52,4 +51,9 @@ package_tiltback-gnome() {
 
 	DESTDIR="$pkgdir" cmake --install build
 	rm -rf "$pkgdir/usr/bin" "$pkgdir/usr/share"
+	rm -f "$pkgdir/usr/libexec/tiltback/install-greeter.sh"
+	rm -f "$pkgdir/usr/lib/systemd/system/tiltback-greeter.service"
+	rm -f "$pkgdir/usr/lib/systemd/system/tiltback-greeter.path"
+	rm -f "$pkgdir/usr/lib/systemd/system-preset/80-tiltback.preset"
+	rm -f "$pkgdir/usr/lib/tmpfiles.d/tiltback.conf"
 }

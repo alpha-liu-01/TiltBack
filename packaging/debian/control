@@ -15,7 +15,8 @@ Suggests: tiltback-gnome
 Description: Tablet orientation clinic
  Qt Quick clinic for picture transform and digitizer residuals.
  Ships /usr/share/icons/hicolor/*/apps/org.tiltback.TiltBack.png
- (same Icon= as the desktop file).
+ (same Icon= as the desktop file) and the greeter persist helper
+ (tiltback-greeter.service) so the login OSK can reuse the clinic home.
 
 Package: tiltback-gnome
 Architecture: all

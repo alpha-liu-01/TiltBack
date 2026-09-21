@@ -1,0 +1,10 @@
+[Unit]
+Description=TiltBack greeter persist when clinic home is saved
+
+[Path]
+PathModified=/run/tiltback/greeter-request
+PathChanged=/run/tiltback/greeter-request
+Unit=tiltback-greeter.service
+
+[Install]
+WantedBy=multi-user.target

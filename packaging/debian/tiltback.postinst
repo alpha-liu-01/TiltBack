@@ -17,5 +17,13 @@ if [ "$1" = configure ]; then
 		[ -f "$u" ] || continue
 		sed -i 's|/home/[^/]*/.local/bin/tiltback|/usr/bin/tiltback|g' "$u" 2>/dev/null || true
 	done
+	if [ -d /run/systemd/system ]; then
+		systemd-tmpfiles --create /usr/lib/tmpfiles.d/tiltback.conf 2>/dev/null || true
+		systemctl daemon-reload >/dev/null 2>&1 || true
+		deb-systemd-helper enable tiltback-greeter.service >/dev/null || true
+		deb-systemd-helper enable tiltback-greeter.path >/dev/null || true
+		deb-systemd-invoke start tiltback-greeter.path >/dev/null || true
+		deb-systemd-invoke start tiltback-greeter.service >/dev/null || true
+	fi
 fi
 exit 0

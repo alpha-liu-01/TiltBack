@@ -51,5 +51,7 @@ void clearClinicHold();
 bool clinicHoldActive();
 
 int installFollow(const QString &binaryPath, QString *error);
+void requestInstallGreeter();
+int installGreeter(QString *error);
 
 } // namespace TiltBack

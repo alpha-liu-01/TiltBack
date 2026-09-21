@@ -484,4 +484,30 @@ int installFollow(const QString &binaryPath, QString *error)
     return 0;
 }
 
+void requestInstallGreeter()
+{
+    QDir().mkpath(QStringLiteral("/run/tiltback"));
+    QFile f(QStringLiteral("/run/tiltback/greeter-request"));
+    if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text))
+        return;
+    f.write("1\n");
+}
+
+int installGreeter(QString *error)
+{
+    requestInstallGreeter();
+    const QString script = QStringLiteral("/usr/libexec/tiltback/install-greeter.sh");
+    if (QFileInfo::exists(script) && QFileInfo(script).isExecutable())
+        return 0;
+    if (error) {
+        *error = QStringLiteral(
+            "Packaged /usr/libexec/tiltback/install-greeter.sh is missing. "
+            "Install tiltback to /usr, then:\n"
+            "sudo systemctl daemon-reload\n"
+            "sudo systemctl enable --now tiltback-greeter.service tiltback-greeter.path\n"
+            "sudo /usr/libexec/tiltback/install-greeter.sh");
+    }
+    return 1;
+}
+
 } // namespace TiltBack

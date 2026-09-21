@@ -64,6 +64,18 @@ int main(int argc, char *argv[])
         return 0;
     }
 
+    if (hasArg(argc, argv, "--install-greeter")) {
+        QCoreApplication app(argc, argv);
+        setAppIdentity(app);
+        QString err;
+        const int rc = TiltBack::installGreeter(&err);
+        if (rc != 0) {
+            std::fprintf(stderr, "%s\n", qPrintable(err));
+            return rc;
+        }
+        return 0;
+    }
+
     if (hasArg(argc, argv, "--save-home")) {
         QCoreApplication app(argc, argv);
         setAppIdentity(app);

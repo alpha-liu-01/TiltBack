@@ -1,0 +1,3 @@
+# GNOME leftover rebind. Kept separate so Plasma-only installs still
+# ship 80-tiltback.preset (greeter) from the main package.
+enable tiltback-rebind.path
