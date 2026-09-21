@@ -146,6 +146,58 @@ void composeCtm(const QString &tKscreen, int r, float *out)
     ctmMul(t, extra, out);
 }
 
+int quartersFromKscreen(const QString &kscreen)
+{
+    const QString t = normalizeKscreen(kscreen);
+    if (t == QLatin1String("left"))
+        return 1;
+    if (t == QLatin1String("inverted"))
+        return 2;
+    if (t == QLatin1String("right"))
+        return 3;
+    return 0;
+}
+
+int quartersFromResidual(int r)
+{
+    switch (r) {
+    case 1:
+        return 1;
+    case 2:
+        return 3;
+    case 4:
+    case 8:
+        return 2;
+    default:
+        return 0;
+    }
+}
+
+int residualFromQuarters(int q)
+{
+    switch (q & 3) {
+    case 1:
+        return 1;
+    case 2:
+        return 8;
+    case 3:
+        return 2;
+    default:
+        return 0;
+    }
+}
+
+int followResidual(const QString &tNow, const QString &tHome, int rHome)
+{
+    // Inverse ΔT: KScreen left/right are 90° CCW/CW; this udev leftover is the
+    // other hand. Using q(T_home) − q(T) swaps portrait left/right and leaves
+    // both landscapes (none / inverted) unchanged.
+    const int q = (quartersFromKscreen(tHome) - quartersFromKscreen(tNow)
+                   + quartersFromResidual(rHome) + 8)
+        & 3;
+    return residualFromQuarters(q);
+}
+
 int classifyCtmResidual(const float *ctm, const QString &tKscreen)
 {
     float t[9];

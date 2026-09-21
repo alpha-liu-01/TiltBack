@@ -70,6 +70,7 @@ QString kwinNameFromKscreen(const QString &kscreen);
 bool isBuiltinOutput(const QString &name);
 void composeCtm(const QString &tKscreen, int r, float *out);
 int classifyCtmResidual(const float *ctm, const QString &tKscreen);
+int followResidual(const QString &tNow, const QString &tHome, int rHome);
 
 OrientationBackend *createBackend(QObject *parent);
 

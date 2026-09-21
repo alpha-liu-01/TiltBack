@@ -20,7 +20,8 @@ public:
     QString persistHow() const override
     {
         return QStringLiteral(
-            "home.json only; Mutter owns monitors.xml + GSettings; constant udev R if GSettings cannot");
+            "home.json only; Mutter owns monitors.xml; touch udev R is constant; "
+            "pen udev R is composed with ΔT");
     }
     QString pictureSource(const OutputInfo &out) const override;
     QString inputSource(const Digitizer &dev) const override;

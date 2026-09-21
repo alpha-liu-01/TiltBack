@@ -498,7 +498,9 @@ bool writeUdevRuleMap(const QMap<QString, QString> &rules, QString *error)
 {
     const QString path = userUdevRulesPath();
     QDir().mkpath(QFileInfo(path).absolutePath());
-    QString body = QStringLiteral("# TiltBack constant residual. Never CTM(T)∘R.\n");
+    QString body = QStringLiteral(
+        "# TiltBack residual. Touch is constant (Mutter composes T). "
+        "Pen is composed with ΔT (Mutter does not rotate tablet-tools).\n");
     for (auto it = rules.begin(); it != rules.end(); ++it) {
         if (it.value().isEmpty() || classifyMatrix(it.value()) == 0)
             continue;
@@ -588,6 +590,54 @@ bool writeRebindScript(QString *error)
     return true;
 }
 
+QString rebindServiceSrcPath()
+{
+    return QDir::home().filePath(QStringLiteral(".config/tiltback/tiltback-rebind.service"));
+}
+
+QString rebindPathSrcPath()
+{
+    return QDir::home().filePath(QStringLiteral(".config/tiltback/tiltback-rebind.path"));
+}
+
+bool writeRebindUnits()
+{
+    const QString service = QStringLiteral(
+        "[Unit]\n"
+        "Description=TiltBack HID rebind so Mutter reopens digitizers\n"
+        "\n"
+        "[Service]\n"
+        "Type=oneshot\n"
+        "ExecStart=%1\n")
+                                .arg(rebindScriptPath());
+    const QString path = QStringLiteral(
+        "[Unit]\n"
+        "Description=TiltBack HID rebind when residual rules change\n"
+        "\n"
+        "[Path]\n"
+        "PathModified=%1\n"
+        "PathChanged=%1\n"
+        "Unit=tiltback-rebind.service\n"
+        "\n"
+        "[Install]\n"
+        "WantedBy=multi-user.target\n")
+                             .arg(userUdevRulesPath());
+    QDir().mkpath(QFileInfo(rebindServiceSrcPath()).absolutePath());
+    auto write = [](const QString &file, const QString &body) {
+        QFile f(file);
+        if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text))
+            return false;
+        f.write(body.toUtf8());
+        return true;
+    };
+    return write(rebindServiceSrcPath(), service) && write(rebindPathSrcPath(), path);
+}
+
+bool rebindPathInstalled()
+{
+    return QFileInfo::exists(QStringLiteral("/etc/systemd/system/tiltback-rebind.path"));
+}
+
 QString udevInstallHint()
 {
     return QStringLiteral(
@@ -596,10 +646,14 @@ QString udevInstallHint()
                "If /etc/udev/rules.d/61-tiltback.rules is not a symlink to that file yet:\n"
                "sudo mkdir -p /etc/udev/rules.d\n"
                "sudo ln -sf %1 /etc/udev/rules.d/61-tiltback.rules\n"
-               "Approve the Polkit dialog if it appears, or from SSH:\n"
-               "sudo %2\n"
-               "Then tap the same R again.")
-        .arg(userUdevRulesPath(), rebindScriptPath());
+               "For follow to rotate the stylus without a password each time:\n"
+               "sudo cp %3 /etc/systemd/system/tiltback-rebind.service\n"
+               "sudo cp %4 /etc/systemd/system/tiltback-rebind.path\n"
+               "sudo systemctl daemon-reload\n"
+               "sudo systemctl enable --now tiltback-rebind.path\n"
+               "Or reopen once from SSH / Polkit:\n"
+               "sudo %2")
+        .arg(userUdevRulesPath(), rebindScriptPath(), rebindServiceSrcPath(), rebindPathSrcPath());
 }
 
 bool udevRuleInstalled()
@@ -924,6 +978,55 @@ OutputInfo readViaGdctl()
     return info;
 }
 
+bool waitForRebindStamp(int tries, int sleepMs)
+{
+    for (int i = 0; i < tries; ++i) {
+        if (compositorPickedCurrentRules())
+            return true;
+        QThread::msleep(sleepMs);
+    }
+    return compositorPickedCurrentRules();
+}
+
+bool applyUdevMatrix(const Digitizer &dev, const QString &matrix, QString *error)
+{
+    QMap<QString, QString> rules = readUdevRuleMap(userUdevRulesPath());
+    auto applyName = [&](const QString &name) {
+        if (classifyMatrix(matrix) == 0)
+            rules.remove(name);
+        else
+            rules.insert(name, matrix);
+    };
+    applyName(dev.name);
+    if (looksLikeTablet(dev.name)) {
+        for (const UdevNode &node : scanUdevNodes()) {
+            if (node.digitizer.vendor == dev.vendor && node.digitizer.product == dev.product
+                && !isDenied(node.digitizer.name, false, node.digitizer.vendor, node.digitizer.product))
+                applyName(node.digitizer.name);
+        }
+    }
+    if (!writeUdevRuleMap(rules, error))
+        return false;
+    if (!writeRebindScript(error))
+        return false;
+    writeRebindUnits();
+    if (compositorPickedCurrentRules())
+        return true;
+    if (rebindPathInstalled() && waitForRebindStamp(12, 250))
+        return true;
+    if (!udevRuleInstalled()) {
+        if (error)
+            *error = udevInstallHint();
+        return false;
+    }
+    if (tryRebindHid() && waitForRebindStamp(8, 250))
+        return true;
+    requestRebindDialog();
+    if (error)
+        *error = udevInstallHint();
+    return false;
+}
+
 } // namespace
 } // namespace TiltBack
 
@@ -939,8 +1042,9 @@ GnomeBackend::GnomeBackend(QObject *parent)
 
 QString GnomeBackend::inputBackendLabelFor(DigitizerClass kind) const
 {
-    Q_UNUSED(kind);
-    return inputBackendLabel();
+    if (kind == DigitizerClass::Finger)
+        return QStringLiteral("yes (udev constant; Mutter follows T)");
+    return QStringLiteral("yes (udev ∘ ΔT; Mutter skips tablet T)");
 }
 
 QString GnomeBackend::pictureSource(const OutputInfo &out) const
@@ -955,10 +1059,15 @@ QString GnomeBackend::pictureSource(const OutputInfo &out) const
 
 QString GnomeBackend::inputSource(const Digitizer &dev) const
 {
+    if (looksLikeTablet(dev.name) && !looksLikeTouch(dev.name)) {
+        return QStringLiteral(
+                   "udev LIBINPUT composed with ΔT (Mutter does not rotate tablet-tools with T; "
+                   "%1 is not identity); HID rebind after each pose")
+            .arg(dev.sysName.isEmpty() ? QStringLiteral("eventN") : dev.sysName);
+    }
     return QStringLiteral(
-               "constant udev LIBINPUT_CALIBRATION_MATRIX (name + VID:PID; %1 is not identity); "
-               "Mutter apply is HID rebind, not udevadm trigger; not composed with T; "
-               "GSettings has no 90° key")
+               "constant udev LIBINPUT (Mutter already composes T onto touch; "
+               "%1 is not identity); HID rebind only when R changes")
         .arg(dev.sysName.isEmpty() ? QStringLiteral("eventN") : dev.sysName);
 }
 
@@ -1217,42 +1326,7 @@ bool GnomeBackend::setResidual(const Digitizer &dev, int r, QString *error)
                       QStringLiteral("false")},
                      nullptr, nullptr);
     }
-    QMap<QString, QString> rules = readUdevRuleMap(userUdevRulesPath());
-    const QString matrix = matrixForResidual(r);
-    auto applyName = [&](const QString &name) {
-        if (classifyMatrix(matrix) == 0)
-            rules.remove(name);
-        else
-            rules.insert(name, matrix);
-    };
-    applyName(dev.name);
-    if (looksLikeTablet(dev.name)) {
-        for (const UdevNode &node : scanUdevNodes()) {
-            if (node.digitizer.vendor == dev.vendor && node.digitizer.product == dev.product
-                && !isDenied(node.digitizer.name, false, node.digitizer.vendor, node.digitizer.product))
-                applyName(node.digitizer.name);
-        }
-    }
-    if (!writeUdevRuleMap(rules, error))
-        return false;
-    if (!writeRebindScript(error))
-        return false;
-    if (compositorPickedCurrentRules())
-        return true;
-    if (!udevRuleInstalled()) {
-        if (error)
-            *error = udevInstallHint();
-        return false;
-    }
-    if (tryRebindHid()) {
-        QThread::msleep(400);
-        if (compositorPickedCurrentRules())
-            return true;
-    }
-    requestRebindDialog();
-    if (error)
-        *error = udevInstallHint();
-    return false;
+    return applyUdevMatrix(dev, matrixForResidual(r), error);
 }
 
 int GnomeBackend::getResidual(const Digitizer &dev, bool *ok)
@@ -1278,17 +1352,21 @@ bool GnomeBackend::stampFollow(const HomeProfile &home, QString *error)
     wantP.ok = !home.penName.isEmpty();
     Digitizer finger = resolve(DigitizerClass::Finger, wantF.ok ? &wantF : nullptr);
     Digitizer pen = resolve(DigitizerClass::Pen, wantP.ok ? &wantP : nullptr);
-    auto one = [&](const Digitizer &dev, int want) {
+    const OutputInfo out = readOutput();
+    const QString tNow = out.ok ? out.tKscreen : QStringLiteral("none");
+    const QString tHome = home.tHome.isEmpty() ? QStringLiteral("inverted") : home.tHome;
+    auto one = [&](const Digitizer &dev, int homeR, bool composeWithT) {
         if (!dev.ok)
             return true;
+        const int want = composeWithT ? followResidual(tNow, tHome, homeR) : homeR;
         bool liveOk = false;
         const int now = getResidual(dev, &liveOk);
         const bool sameInvert = (want == 4 || want == 8) && (now == 4 || now == 8);
         if (liveOk && (now == want || sameInvert))
             return true;
-        return setResidual(dev, want, error);
+        return applyUdevMatrix(dev, matrixForResidual(want), error);
     };
-    return one(finger, home.rTouch) && one(pen, home.rPen);
+    return one(finger, home.rTouch, false) && one(pen, home.rPen, true);
 }
 
 void GnomeBackend::watchPose()
