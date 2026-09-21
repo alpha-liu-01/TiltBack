@@ -7,7 +7,8 @@ Two host paths. Do not mix their outputs: a glibc binary will not run on postmar
 | Path | When | Command |
 | --- | --- | --- |
 | Host glibc (or native musl) | Debian, Fedora, Arch, openSUSE, or Alpine **on the machine that will run it** | `./scripts/deps.sh` then `./scripts/build.sh --install` |
-| Alpine 3.22 musl Docker | Cross-build for postmarketOS from a glibc PC | `./scripts/build-alpine.sh` |
+| Alpine 3.22 musl Docker | Binary copy for postmarketOS from a glibc PC | `./scripts/build-alpine.sh` |
+| Alpine 3.22 musl Docker | `.apk` for postmarketOS (`tiltback` + `tiltback-gnome`) | `./scripts/build-apk.sh` |
 
 QML is interpreted (`NO_CACHEGEN`). Alpine 3.22 ships Qt 6.8; postmarketOS 26.06 is Qt 6.11. A 6.8 qmlcache will not load on 6.11.
 
@@ -52,40 +53,48 @@ systemd-run --user \
   "$HOME/.local/bin/tiltback"
 ```
 
-X11 / XFCE (example): `DISPLAY=:0`, `XAUTHORITY` from the session, `XDG_RUNTIME_DIR=/run/user/$(id -u)`, and the session bus. Never `pkill -f tiltback`.
+X11 / XFCE (example): `DISPLAY=:0`, `XAUTHORITY` from the session, `XDG_RUNTIME_DIR=/run/user/$(id -u)`, and the session bus.
 
 Never `pkill -f tiltback` (it matches SSH).
+
+GNOME leftover residual is a udev matrix plus a HID unbind/bind. Mutter keeps evdev open, so `udevadm trigger` is not the apply. From a `~/.local` install that is `pkexec` of `~/.config/tiltback/rebind-hid.sh`. After `tiltback-gnome` is installed, the GUI and follow write `/run/tiltback/rebind-request` and the system path unit runs `/usr/libexec/tiltback/rebind-hid.sh` as root — no password if that unit is enabled.
+
+GNOME’s app menu prefers `~/.local/share/applications` over `/usr/share`. A leftover clinic desktop with `Exec=…/.local/bin/tiltback` keeps launching the local binary (and that `pkexec`) after an apk install. Close any open TiltBack window and launch from the menu again. Logout is not required.
 
 ## Follow
 
 ```sh
-~/.local/bin/tiltback --install-follow
+tiltback --install-follow
 systemctl --user enable --now tiltback-follow.service
 ```
 
-Follow restamps residuals only. The GUI process must not also run `--follow`.
+`--install-follow` writes `/usr/bin/tiltback --follow` when that file exists, otherwise the binary that ran the command (`~/.local/bin/tiltback` on a prefix install). Follow restamps residuals only. The GUI process must not also run `--follow`.
 
 The RO-home `/tmp` + runtime systemd drop-in path is a postmarketOS emergency, not the default. A writable `~/.config/systemd/user` is enough.
 
 ## postmarketOS from a fast PC
+
+Binary-only copy (KWin clinic, or a one-off before packaging):
 
 ```sh
 ./scripts/build-alpine.sh
 scp build-alpine/tiltback data/org.tiltback.TiltBack.desktop user@tablet:
 ```
 
-On the tablet: `~/.local/bin/tiltback` (or `/tmp/tiltback` if home is emergency-RO) and the desktop file under `~/.local/share/applications/` with a full `Exec=` path.
+On the tablet: runtime Qt (`sudo apk add qt6-qtbase qt6-qtdeclarative qt6-qtwayland`), then `~/.local/bin/tiltback` (or `/tmp/tiltback` if home is emergency-RO) and the desktop file under `~/.local/share/applications/` with a full `Exec=` path.
+
+On GNOME that local desktop will steal the app menu from a later `/usr` apk. Prefer `./scripts/build-apk.sh` on GNOME, or let the apk post-install rename the leftover binary and remove that desktop (see below).
 
 ## Alpine / postmarketOS packages
 
-`./scripts/build-apk.sh` builds two musl `.apk` files with the same `org.tiltback.TiltBack` hicolor icon the desktop file already uses:
+`./scripts/build-apk.sh` packs the **working tree** (not `git archive`) into two musl `.apk` files under `packaging/alpine/packages/`. Same `org.tiltback.TiltBack` hicolor icon the desktop file already uses. `pkgrel` is in `packaging/alpine/APKBUILD`.
 
-| Package | Contents |
-| --- | --- |
-| `tiltback` | `/usr/bin/tiltback`, `org.tiltback.TiltBack.desktop`, hicolor icons |
-| `tiltback-gnome` | `/usr/libexec/tiltback/rebind-hid.sh`, `tiltback-rebind.path` / `.service`, tmpfiles.d |
+| Package | Contents | Runtime |
+| --- | --- | --- |
+| `tiltback` | `/usr/bin/tiltback`, `org.tiltback.TiltBack.desktop`, hicolor icons | `qt6-qtbase` `qt6-qtdeclarative` `qt6-qtwayland` |
+| `tiltback-gnome` | `/usr/libexec/tiltback/rebind-hid.sh`, `tiltback-rebind.path` / `.service`, `80-tiltback.preset`, tmpfiles.d | pulled by `install_if` |
 
-`tiltback-gnome` uses Alpine `install_if="tiltback gnome-shell systemd"`. `apk add tiltback` on a GNOME + systemd machine (postmarketOS GNOME) pulls the helper. Post-install enables `tiltback-rebind.path` and ships `80-tiltback.preset` (`enable tiltback-rebind.path`) so `postmarketos-base-systemd`'s `disable *` preset does not undo it. That is the packaged form of:
+`tiltback-gnome` uses Alpine `install_if="tiltback gnome-shell systemd"`. `apk add tiltback` on a GNOME + systemd machine (postmarketOS GNOME) pulls the helper. Post-install creates `/run/tiltback` (tmpfiles `1777`), enables `tiltback-rebind.path`, and ships `80-tiltback.preset` (`enable tiltback-rebind.path`) so `postmarketos-base-systemd`’s `disable *` preset does not undo it. That is the packaged form of:
 
 ```sh
 sudo cp ~/.config/tiltback/tiltback-rebind.service /etc/systemd/system/
@@ -94,7 +103,13 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now tiltback-rebind.path
 ```
 
-The packaged path watches `/run/tiltback/rebind-request` (world-writable after tmpfiles). Follow writes the user udev rule, touches that request file, and the system unit rebinds the HID devices as root. Do **not** put a home path in a packaged unit.
+The packaged path watches `/run/tiltback/rebind-request` (world-writable after tmpfiles). Follow writes the user udev rule, touches that request file, and the system unit rebinds the HID devices as root. Do **not** put a home path in a packaged unit. The binary does not `pkexec` the user script when `/usr/libexec/tiltback/rebind-hid.sh` is present.
+
+`tiltback` post-install / post-upgrade also clears a leftover clinic install so the GNOME menu and follow unit cannot keep using `~/.local`:
+
+- remove `~/.local/share/applications/org.tiltback.TiltBack.desktop` if `Exec` points at `.local/bin/tiltback`
+- rename `~/.local/bin/tiltback` to `tiltback.pre-apk`
+- rewrite `~/.config/systemd/user/tiltback-follow.service` `ExecStart` to `/usr/bin/tiltback`
 
 Other distros can do the same split:
 
@@ -105,11 +120,13 @@ Other distros can do the same split:
 | Fedora / openSUSE | `%package gnome` + `Supplements: (tiltback and gnome-shell)` | `%post gnome` + `%systemd_post` |
 | Arch | `optdepends=('gnome-shell: Mutter HID rebind')` | `.install` `post_install()` |
 
-The udev symlink (`/etc/udev/rules.d/61-tiltback.rules` → the user rule file) is still per-user and is not created by the package: the package does not know which home to point at. The clinic prints that `ln -sf` if the link is missing.
+The udev symlink (`/etc/udev/rules.d/61-tiltback.rules` → `~/.config/tiltback/61-tiltback.rules`) is still per-user and is not created by the package: the package does not know which home to point at. The clinic prints that `ln -sf` if the link is missing.
 
-On the tablet, after the apks are copied:
+On the tablet, after the apks are copied (`packaging/alpine/packages/<arch>/`):
 
 ```sh
-sudo apk add --allow-untrusted ./tiltback-0.0.0-r1.apk ./tiltback-gnome-0.0.0-r1.apk
-# follow and the GUI must be /usr/bin/tiltback, not a leftover ~/.local/bin copy
+sudo apk add --allow-untrusted ./tiltback-*.apk ./tiltback-gnome-*.apk
+# GUI and follow: /usr/bin/tiltback (or the GNOME apps menu)
+# leftover ~/.local desktop/binary are renamed or removed by post-install
+# close an already-open TiltBack window and launch from the menu; no logout
 ```
