@@ -6,9 +6,10 @@ Two host paths. Do not mix their outputs: a glibc binary will not run on postmar
 
 | Path | When | Command |
 | --- | --- | --- |
-| Host glibc (or native musl) | Debian, Fedora, Arch, openSUSE, or Alpine **on the machine that will run it** | `./scripts/deps.sh` then `./scripts/build.sh --install` |
+| Host glibc (or native musl) | Debian, Fedora, Arch, openSUSE **on the machine that will run it** | `./scripts/deps.sh` then `./scripts/build.sh` → `dist/*.deb` / `*.rpm` / `*.pkg.tar.zst` |
+| Session-only (no greeter) | No root, clinic this login only | `./scripts/build.sh --local` → `~/.local` |
 | Alpine 3.22 musl Docker | Binary copy for postmarketOS from a glibc PC | `./scripts/build-alpine.sh` |
-| Alpine 3.22 musl Docker | `.apk` for postmarketOS (`tiltback` + `tiltback-gnome`) | `./scripts/build-apk.sh` |
+| Alpine 3.22 musl Docker | `.apk` for postmarketOS (`tiltback` + `tiltback-gnome`) | `./scripts/build-apk.sh` (or `./scripts/build.sh` on native Alpine) |
 
 QML is interpreted (`NO_CACHEGEN`). Alpine 3.22 ships Qt 6.8; postmarketOS 26.06 is Qt 6.11. A 6.8 qmlcache will not load on 6.11.
 
@@ -18,11 +19,11 @@ QML is interpreted (`NO_CACHEGEN`). Alpine 3.22 ships Qt 6.8; postmarketOS 26.06
 
 | Family | Install |
 | --- | --- |
-| Debian / Ubuntu | `sudo apt install cmake ninja-build g++ pkg-config libdrm-dev qt6-base-dev qt6-declarative-dev libx11-dev libxrandr-dev libxi-dev` |
-| Fedora | `sudo dnf install cmake ninja-build gcc-c++ pkgconf-pkg-config libdrm-devel qt6-qtbase-devel qt6-qtdeclarative-devel libX11-devel libXrandr-devel libXi-devel` |
-| Arch | `sudo pacman -S --needed cmake ninja gcc pkgconf libdrm qt6-base qt6-declarative libx11 libxrandr libxi` |
+| Debian / Ubuntu | `sudo apt install cmake ninja-build g++ pkg-config libdrm-dev qt6-base-dev qt6-declarative-dev libx11-dev libxrandr-dev libxi-dev dpkg-dev debhelper` |
+| Fedora | `sudo dnf install cmake ninja-build gcc-c++ pkgconf-pkg-config libdrm-devel qt6-qtbase-devel qt6-qtdeclarative-devel libX11-devel libXrandr-devel libXi-devel rpm-build` |
+| Arch | `sudo pacman -S --needed cmake ninja gcc pkgconf libdrm qt6-base qt6-declarative libx11 libxrandr libxi base-devel` |
 | Alpine (native) | `sudo apk add cmake ninja g++ pkgconf libdrm-dev qt6-qtbase-dev qt6-qtdeclarative-dev` — X11 optional: `libx11-dev libxrandr-dev libxi-dev` |
-| openSUSE | `sudo zypper install cmake ninja gcc-c++ pkgconf-pkg-config libdrm-devel qt6-base-devel qt6-declarative-devel libX11-devel libXrandr-devel libXi-devel` |
+| openSUSE | `sudo zypper install cmake ninja gcc-c++ pkgconf-pkg-config libdrm-devel qt6-base-devel qt6-declarative-devel libX11-devel libXrandr-devel libXi-devel rpm-build` |
 
 X11 session packages are recommended so CMake defines `TILTBACK_X11`. A Wayland-only or Alpine musl build without them still produces a KWin + Mutter clinic.
 
@@ -30,19 +31,22 @@ Ninja is preferred. Without it, `./scripts/build.sh` uses Unix Makefiles.
 
 ## Install and run
 
-Default prefix is `~/.local` (no root). `PREFIX` overrides it.
+`./scripts/build.sh` writes packages under `dist/`. Install those so the binary and greeter units land in `/usr`.
 
 ```sh
 ./scripts/deps.sh
-./scripts/build.sh --install
-# binary:  ~/.local/bin/tiltback
-# desktop: ~/.local/share/applications/org.tiltback.TiltBack.desktop
-# icons:   ~/.local/share/icons/hicolor/*/apps/org.tiltback.TiltBack.png
+./scripts/build.sh
+sudo dnf install ./dist/tiltback-*.rpm                 # Fedora
+# sudo zypper install ./dist/tiltback-*.rpm            # openSUSE
+# sudo apt install ./dist/tiltback_*.deb               # Debian / Ubuntu
+# sudo pacman -U dist/tiltback-*.pkg.tar.zst           # Arch
 ```
 
-If `PREFIX/bin` is not on `PATH`, the installed desktop file gets an absolute `Exec=`. Launch from the Plasma app menu or:
+On GNOME also install `tiltback-gnome` from the same `dist/` directory.
 
-Plasma or GNOME Wayland:
+`./scripts/build.sh --local` (or `PREFIX=…`) is a no-root session clinic only. Greeter persist will not run from `~/.local`.
+
+Launch `/usr/bin/tiltback` from the application menu, or:
 
 ```sh
 export XDG_RUNTIME_DIR=/run/user/$(id -u)
@@ -50,16 +54,16 @@ export WAYLAND_DISPLAY=wayland-0
 export DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u)/bus
 systemd-run --user \
   -E WAYLAND_DISPLAY -E XDG_RUNTIME_DIR -E DBUS_SESSION_BUS_ADDRESS \
-  "$HOME/.local/bin/tiltback"
+  /usr/bin/tiltback
 ```
 
 X11 / XFCE (example): `DISPLAY=:0`, `XAUTHORITY` from the session, `XDG_RUNTIME_DIR=/run/user/$(id -u)`, and the session bus.
 
 Never `pkill -f tiltback` (it matches SSH).
 
-GNOME leftover residual is a udev matrix plus a HID unbind/bind. Mutter keeps evdev open, so `udevadm trigger` is not the apply. From a `~/.local` install that is `pkexec` of `~/.config/tiltback/rebind-hid.sh`. After `tiltback-gnome` is installed, the GUI and follow write `/run/tiltback/rebind-request` and the system path unit runs `/usr/libexec/tiltback/rebind-hid.sh` as root — no password if that unit is enabled.
+GNOME leftover residual is a udev matrix plus a HID unbind/bind. Mutter keeps evdev open, so `udevadm trigger` is not the apply. After `tiltback-gnome` is installed, the GUI and follow write `/run/tiltback/rebind-request` and the system path unit runs `/usr/libexec/tiltback/rebind-hid.sh` as root — no password if that unit is enabled.
 
-GNOME’s app menu prefers `~/.local/share/applications` over `/usr/share`. A leftover clinic desktop with `Exec=…/.local/bin/tiltback` keeps launching the local binary (and that `pkexec`) after an apk install. Close any open TiltBack window and launch from the menu again. Logout is not required.
+GNOME’s app menu prefers `~/.local/share/applications` over `/usr/share`. A leftover clinic desktop with `Exec=…/.local/bin/tiltback` keeps launching the local binary. Close any open TiltBack window and launch from the menu again. Logout is not required.
 
 ## Follow
 
@@ -118,9 +122,9 @@ Every family ships greeter persist on the **main** package (`install-greeter.sh`
 | Family | How the GNOME helper attaches | Enable the path unit | Build |
 | --- | --- | --- | --- |
 | Alpine / pmOS apk | `install_if` on `gnome-shell` + `systemd` | `tiltback-gnome.post-install` | `./scripts/build-apk.sh` |
-| Debian / Ubuntu | `tiltback-gnome` (`Suggests:` from `tiltback`; `Enhances: gnome-shell`) | `packaging/debian/tiltback-gnome.postinst` | copy `packaging/debian` to `debian/`, then `dpkg-buildpackage -us -uc` |
-| Fedora / openSUSE | `%package gnome` + `Supplements: (tiltback and gnome-shell)` | `%post gnome` + `%systemd_post` | tarball + `rpmbuild -ba packaging/rpm/tiltback.spec` |
-| Arch | `optdepends=('tiltback-gnome: …')` on `tiltback` | `packaging/arch/tiltback.install` | `cd packaging/arch && makepkg` |
+| Debian / Ubuntu | `tiltback-gnome` (`Suggests:` from `tiltback`; `Enhances: gnome-shell`) | `packaging/debian/tiltback-gnome.postinst` | `./scripts/build.sh` → `dist/*.deb` |
+| Fedora / openSUSE | `%package gnome` + `Supplements: (tiltback and gnome-shell)` | `%post gnome` + `%systemd_post` | `./scripts/build.sh` → `dist/*.rpm` |
+| Arch | `optdepends=('tiltback-gnome: …')` on `tiltback` | `packaging/arch/tiltback.install` | `./scripts/build.sh` → `dist/*.pkg.tar.zst` |
 
 On GNOME, install **both** `tiltback` and `tiltback-gnome`. Alpine pulls the helper via `install_if`. Fedora/openSUSE may pull it via `Supplements`. Debian and Arch do not: `sudo apt install tiltback tiltback-gnome` or `pacman -U tiltback-*.pkg.tar.zst tiltback-gnome-*.pkg.tar.zst`.
 

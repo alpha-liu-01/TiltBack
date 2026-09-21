@@ -1,7 +1,13 @@
 /build/
 /build-alpine/
+/dist/
+/debian/
 /packaging/alpine/work/
 /packaging/alpine/packages/
+/packaging/rpm/work/
+/packaging/arch/*.pkg.tar.zst
+/packaging/arch/pkg/
+/packaging/arch/src/
 CMakeUserPresets.json
 .cache/
 *.user

@@ -46,16 +46,24 @@ The Plasma W620 seed is not applied on GNOME. The same DMI can need a different 
 
 ## Build and install
 
-See [docs/build.md](docs/build.md) for host packages, prefixes, follow, and distro packaging (`tiltback` + `tiltback-gnome`).
+See [docs/build.md](docs/build.md) for host packages and packaging.
 
 On the machine that will run TiltBack:
 
 ```sh
 ./scripts/deps.sh
-./scripts/build.sh --install
+./scripts/build.sh
+# packages land in dist/  (.rpm / .deb / .pkg.tar.zst)
+sudo dnf install ./dist/tiltback-*.rpm          # Fedora / openSUSE: zypper
+# sudo apt install ./dist/tiltback_*.deb        # Debian / Ubuntu
+# sudo pacman -U dist/tiltback-*.pkg.tar.zst    # Arch
 ```
 
-That installs to `~/.local` (binary, desktop file, and hicolor icons). Launch it from the desktop application menu.
+That installs to `/usr` and enables greeter persist (`tiltback-greeter.service`). Launch `/usr/bin/tiltback` from the application menu. A leftover `~/.local` desktop file wins over the packaged one — close any open window and launch from the menu again.
+
+On GNOME also install `tiltback-gnome` (passwordless HID rebind). Alpine and Fedora/openSUSE can pull it when GNOME is present; Debian and Arch need the second package named.
+
+`./scripts/build.sh --local` still installs a session-only clinic to `~/.local`. It does **not** fix the login OSK.
 
 Cross-building for postmarketOS from a glibc PC:
 
@@ -65,8 +73,6 @@ Cross-building for postmarketOS from a glibc PC:
 sudo apk add --allow-untrusted ./tiltback-*.apk ./tiltback-gnome-*.apk
 ```
 
-On GNOME, install `tiltback-gnome` as well. That package is the passwordless HID rebind (`tiltback-rebind.path` → `/usr/libexec/tiltback/rebind-hid.sh`). Alpine and Fedora/openSUSE can pull it automatically when GNOME is present; Debian and Arch need the second package named explicitly. After a packaged install, use `/usr/bin/tiltback` (or the application menu). Close an already-open window and launch again; a leftover `~/.local` desktop file wins over the packaged one.
-
 QML is interpreted (`NO_CACHEGEN`) so an Alpine 3.22 (Qt 6.8) build can load on postmarketOS 26.06 (Qt 6.11).
 
 ## Using the clinic
@@ -75,14 +81,8 @@ QML is interpreted (`NO_CACHEGEN`) so an Alpine 3.22 (Qt 6.8) build can load on 
 2. Apply **Picture** until the panel is upright. Keep or revert.
 3. Apply **Finger** and **Pen** until a tap and a stylus contact land on the pixel they appear to belong to.
 4. **Save home**.
-5. **Install follow**, then enable the user unit:
-
-```sh
-tiltback --install-follow
-systemctl --user enable --now tiltback-follow.service
-```
-
-`--install-follow` prefers `/usr/bin/tiltback` when that file exists. The GUI process must not also run `--follow`. After a `/usr` install, `tiltback --install-greeter` copies the last home into GDM / SDDM / Plasma Login Manager so the password OSK matches (see [docs/greeter-and-boot.md](docs/greeter-and-boot.md)).
+5. **Install follow** in the dashboard (or `tiltback --install-follow`). The GUI process must not also run `--follow`.
+6. **Save home** also copies that tuple into the greeter (GDM / SDDM / Plasma Login Manager) when the `/usr` package is installed. The first unlock is still unfixed; the next logout or reboot should match. See [docs/greeter-and-boot.md](docs/greeter-and-boot.md).
 
 Other entry points: `tiltback --report`, `tiltback --save-home`. Never `pkill -f tiltback` (it matches SSH).
 

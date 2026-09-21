@@ -55,20 +55,20 @@ done
 
 case $family in
     debian)
-        pkgs='sudo apt install cmake ninja-build g++ pkg-config libdrm-dev qt6-base-dev qt6-declarative-dev libx11-dev libxrandr-dev libxi-dev'
+        pkgs='sudo apt install cmake ninja-build g++ pkg-config libdrm-dev qt6-base-dev qt6-declarative-dev libx11-dev libxrandr-dev libxi-dev dpkg-dev debhelper'
         ;;
     fedora)
-        pkgs='sudo dnf install cmake ninja-build gcc-c++ pkgconf-pkg-config libdrm-devel qt6-qtbase-devel qt6-qtdeclarative-devel libX11-devel libXrandr-devel libXi-devel'
+        pkgs='sudo dnf install cmake ninja-build gcc-c++ pkgconf-pkg-config libdrm-devel qt6-qtbase-devel qt6-qtdeclarative-devel libX11-devel libXrandr-devel libXi-devel rpm-build'
         ;;
     arch)
-        pkgs='sudo pacman -S --needed cmake ninja gcc pkgconf libdrm qt6-base qt6-declarative libx11 libxrandr libxi'
+        pkgs='sudo pacman -S --needed cmake ninja gcc pkgconf libdrm qt6-base qt6-declarative libx11 libxrandr libxi base-devel'
         ;;
     alpine)
         pkgs='sudo apk add cmake ninja g++ pkgconf libdrm-dev qt6-qtbase-dev qt6-qtdeclarative-dev'
         x11_pkgs='libx11-dev libxrandr-dev libxi-dev'
         ;;
     suse)
-        pkgs='sudo zypper install cmake ninja gcc-c++ pkgconf-pkg-config libdrm-devel qt6-base-devel qt6-declarative-devel libX11-devel libXrandr-devel libXi-devel'
+        pkgs='sudo zypper install cmake ninja gcc-c++ pkgconf-pkg-config libdrm-devel qt6-base-devel qt6-declarative-devel libX11-devel libXrandr-devel libXi-devel rpm-build'
         ;;
     *)
         pkgs='# unknown distro — need cmake, a C++ compiler, pkg-config, libdrm, Qt 6 Quick + QuickControls2 + DBus'

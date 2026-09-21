@@ -26,6 +26,7 @@ BuildRequires:  systemd-rpm-macros
 
 Requires:       qt6-qtbase
 Requires:       qt6-qtdeclarative
+Requires:       qt6-qtwayland
 Suggests:       %{name}-gnome
 
 %description

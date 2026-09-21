@@ -461,7 +461,7 @@ Two paths; do not mix their binaries. See [build.md](build.md).
 
 | Path | Command |
 | --- | --- |
-| Host (Debian, Fedora, Arch, openSUSE, native Alpine) | `./scripts/deps.sh` then `./scripts/build.sh --install` → `~/.local` |
+| Host (Debian, Fedora, Arch, openSUSE) | `./scripts/deps.sh` then `./scripts/build.sh` → `dist/` packages (`/usr`). `--local` is session-only |
 | postmarketOS musl from a glibc PC | `./scripts/build-alpine.sh` (Alpine 3.22 Docker) or `./scripts/build-apk.sh` (`tiltback` + `tiltback-gnome` with the same hicolor icon) |
 | Distro packages (GNOME helper) | `packaging/alpine`, `packaging/debian`, `packaging/rpm`, `packaging/arch` — each `tiltback-gnome` ships the HID rebind path unit so residual apply does not prompt for a password |
 
