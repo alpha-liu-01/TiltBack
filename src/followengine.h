@@ -2,6 +2,7 @@
 
 #include "kwininput.h"
 
+#include <QDateTime>
 #include <QObject>
 #include <QString>
 #include <QtDBus/QDBusMessage>
@@ -32,11 +33,14 @@ private:
     void schedule(const QString &reason);
     void stamp(const QString &reason);
     void bindDeviceSignals();
+    void reloadHomeIfChanged();
 
     HomeProfile m_home;
     Digitizer m_finger;
     Digitizer m_pen;
     QString m_reason;
+    QString m_homePath;
+    QDateTime m_homeMtime;
     QFileSystemWatcher *m_watcher = nullptr;
     QTimer *m_debounce = nullptr;
     QTimer *m_tick = nullptr;

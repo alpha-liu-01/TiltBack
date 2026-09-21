@@ -196,9 +196,13 @@ QString normalizeKscreen(const QString &requested)
 ClinicModel::ClinicModel(QObject *parent)
     : QObject(parent)
     , m_revertTimer(new QTimer(this))
+    , m_wizardHoldTimer(new QTimer(this))
 {
     m_revertTimer->setInterval(1000);
     connect(m_revertTimer, &QTimer::timeout, this, &ClinicModel::onRevertTick);
+    m_wizardHoldTimer->setInterval(5000);
+    connect(m_wizardHoldTimer, &QTimer::timeout, this, &ClinicModel::onWizardHoldTick);
+    m_startOnWizard = QCoreApplication::arguments().contains(QStringLiteral("--wizard"));
     refresh();
 }
 
@@ -596,7 +600,7 @@ bool ClinicModel::runDoctor(const QString &output, const QString &kscreen)
     return true;
 }
 
-void ClinicModel::applyPicture(const QString &kscreen)
+void ClinicModel::applyPicture(const QString &kscreen, bool countdown)
 {
     const QString want = normalizeKscreen(kscreen);
     if (want.isEmpty()) {
@@ -638,9 +642,11 @@ void ClinicModel::applyPicture(const QString &kscreen)
         return;
     }
 
-    m_revertKscreen = snapshot;
-    m_picturePendingLabel = QStringLiteral("T=%1").arg(m_outputTransform);
-    startPictureCountdown();
+    if (countdown) {
+        m_revertKscreen = snapshot;
+        m_picturePendingLabel = QStringLiteral("T=%1").arg(m_outputTransform);
+        startPictureCountdown();
+    }
     refresh();
 }
 
@@ -783,7 +789,7 @@ int ClinicModel::getOrientation(const QString &path, bool *ok)
     return TiltBack::getOrientation(path, ok);
 }
 
-void ClinicModel::applyDigitizer(DigitizerClass kind, int r)
+void ClinicModel::applyDigitizer(DigitizerClass kind, int r, bool countdown)
 {
     const bool finger = kind == DigitizerClass::Finger;
     QString &err = finger ? m_fingerError : m_penError;
@@ -843,16 +849,18 @@ void ClinicModel::applyDigitizer(DigitizerClass kind, int r)
 
     live.r = now;
     slot = live;
-    if (finger) {
-        m_fingerRevertR = snapshot;
-        m_fingerAppliedR = r;
-        m_fingerPendingLabel = QStringLiteral("R=%1 (%2)").arg(r).arg(orientationName(r));
-        startFingerCountdown();
-    } else {
-        m_penRevertR = snapshot;
-        m_penAppliedR = r;
-        m_penPendingLabel = QStringLiteral("R=%1 (%2)").arg(r).arg(orientationName(r));
-        startPenCountdown();
+    if (countdown) {
+        if (finger) {
+            m_fingerRevertR = snapshot;
+            m_fingerAppliedR = r;
+            m_fingerPendingLabel = QStringLiteral("R=%1 (%2)").arg(r).arg(orientationName(r));
+            startFingerCountdown();
+        } else {
+            m_penRevertR = snapshot;
+            m_penAppliedR = r;
+            m_penPendingLabel = QStringLiteral("R=%1 (%2)").arg(r).arg(orientationName(r));
+            startPenCountdown();
+        }
     }
     refresh();
     warnIfFollowFight(kind);
@@ -884,14 +892,14 @@ void ClinicModel::warnIfFollowFight(DigitizerClass kind)
     }
 }
 
-void ClinicModel::applyFinger(int r)
+void ClinicModel::applyFinger(int r, bool countdown)
 {
-    applyDigitizer(DigitizerClass::Finger, r);
+    applyDigitizer(DigitizerClass::Finger, r, countdown);
 }
 
-void ClinicModel::applyPen(int r)
+void ClinicModel::applyPen(int r, bool countdown)
 {
-    applyDigitizer(DigitizerClass::Pen, r);
+    applyDigitizer(DigitizerClass::Pen, r, countdown);
 }
 
 void ClinicModel::keepFinger()
@@ -983,9 +991,144 @@ void ClinicModel::installFollow()
     emit changed();
 }
 
+void ClinicModel::onWizardHoldTick()
+{
+    if (m_wizardActive)
+        TiltBack::writeClinicHold();
+}
+
+int ClinicModel::residualCycleNext(int current) const
+{
+    static const int vals[] = {0, 1, 2, 4, 8};
+    for (int i = 0; i < 5; ++i) {
+        if (vals[i] == current)
+            return vals[(i + 1) % 5];
+    }
+    return 0;
+}
+
+void ClinicModel::startWizard()
+{
+    if (m_picturePending)
+        stopPictureCountdown();
+    if (m_fingerPending)
+        stopFingerCountdown();
+    if (m_penPending)
+        stopPenCountdown();
+
+    readLiveOutput();
+    probeKwinInputs();
+    m_wizardSnapshotKscreen = !m_liveKscreen.isEmpty()
+        ? m_liveKscreen
+        : normalizeKscreen(m_outputTransform);
+    m_wizardSnapshotFingerR = m_finger.ok ? m_finger.r : 0;
+    m_wizardSnapshotPenR = m_pen.ok ? m_pen.r : 0;
+    m_wizardActive = true;
+    m_wizardStep = 0;
+    TiltBack::writeClinicHold();
+    m_wizardHoldTimer->start();
+    emit changed();
+}
+
+void ClinicModel::cancelWizard()
+{
+    if (!m_wizardActive)
+        return;
+    if (m_outputName.isEmpty())
+        m_outputName = QStringLiteral("eDP-1");
+    readLiveOutput();
+    if (!m_wizardSnapshotKscreen.isEmpty() && m_liveKscreen != m_wizardSnapshotKscreen)
+        runDoctor(m_outputName, m_wizardSnapshotKscreen);
+    Digitizer finger;
+    if (resolveDigitizer(DigitizerClass::Finger, &finger)
+        && finger.r != m_wizardSnapshotFingerR)
+        setOrientation(finger.path, m_wizardSnapshotFingerR, &m_fingerError);
+    Digitizer pen;
+    if (resolveDigitizer(DigitizerClass::Pen, &pen)
+        && pen.r != m_wizardSnapshotPenR)
+        setOrientation(pen.path, m_wizardSnapshotPenR, &m_penError);
+    m_wizardActive = false;
+    m_wizardHoldTimer->stop();
+    m_wizardStep = 0;
+    syncClinicHold();
+    refresh();
+}
+
+void ClinicModel::finishWizard()
+{
+    if (!m_wizardActive)
+        return;
+    saveHome();
+    m_wizardActive = false;
+    m_wizardHoldTimer->stop();
+    m_wizardStep = 0;
+    syncClinicHold();
+    refreshFollowStatus();
+    emit changed();
+}
+
+void ClinicModel::setWizardStep(int step)
+{
+    if (step < 0)
+        step = 0;
+    if (step > 4)
+        step = 4;
+    if (m_wizardStep == step)
+        return;
+    m_wizardStep = step;
+    emit changed();
+}
+
+void ClinicModel::rotatePictureQuarters(int quarters)
+{
+    readLiveOutput();
+    const QStringList cycle = {
+        QStringLiteral("none"),
+        QStringLiteral("left"),
+        QStringLiteral("inverted"),
+        QStringLiteral("right"),
+    };
+    int idx = cycle.indexOf(m_liveKscreen);
+    if (idx < 0)
+        idx = 0;
+    int next = (idx + quarters) % 4;
+    if (next < 0)
+        next += 4;
+    applyPicture(cycle.at(next), false);
+}
+
+void ClinicModel::cyclePicture()
+{
+    rotatePictureQuarters(1);
+}
+
+void ClinicModel::cycleFinger()
+{
+    Digitizer live;
+    if (!resolveDigitizer(DigitizerClass::Finger, &live)) {
+        m_fingerError = QStringLiteral("no named digitizer");
+        fillFingerCard();
+        emit changed();
+        return;
+    }
+    applyDigitizer(DigitizerClass::Finger, residualCycleNext(live.r), false);
+}
+
+void ClinicModel::cyclePen()
+{
+    Digitizer live;
+    if (!resolveDigitizer(DigitizerClass::Pen, &live)) {
+        m_penError = QStringLiteral("no named digitizer");
+        fillPenCard();
+        emit changed();
+        return;
+    }
+    applyDigitizer(DigitizerClass::Pen, residualCycleNext(live.r), false);
+}
+
 void ClinicModel::syncClinicHold()
 {
-    if (anyPending())
+    if (m_wizardActive || anyPending())
         TiltBack::writeClinicHold();
     else
         TiltBack::clearClinicHold();

@@ -2,7 +2,9 @@
 
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QFileSystemWatcher>
+#include <QStringList>
 #include <QTimer>
 #include <QtDBus/QDBusConnection>
 #include <QtDBus/QDBusMessage>
@@ -78,10 +80,14 @@ int FollowEngine::start()
                 QStringLiteral("org.kde.KWin.InputDeviceManager"),
                 QStringLiteral("deviceRemoved"), this, SLOT(onDeviceChanged()));
 
-    for (const QString &dir : {
-             QDir::home().filePath(QStringLiteral(".config")),
-             QDir::home().filePath(QStringLiteral(".local/share/kscreen")),
-         }) {
+    m_homePath = homeProfilePath();
+    m_homeMtime = QFileInfo(m_homePath).lastModified();
+    QStringList watchDirs = {
+        QDir::home().filePath(QStringLiteral(".config")),
+        QDir::home().filePath(QStringLiteral(".local/share/kscreen")),
+        QFileInfo(m_homePath).absolutePath(),
+    };
+    for (const QString &dir : watchDirs) {
         if (QDir(dir).exists())
             m_watcher->addPath(dir);
     }
@@ -188,6 +194,7 @@ void FollowEngine::onDeviceChanged()
 
 void FollowEngine::onDirChanged(const QString &path)
 {
+    reloadHomeIfChanged();
     if (path.endsWith(QLatin1String("kscreen")) || path.endsWith(QLatin1String(".config"))) {
         schedule(QStringLiteral("output config"));
         m_delayed->start();
@@ -201,7 +208,37 @@ void FollowEngine::onDebounce()
 
 void FollowEngine::onTick()
 {
+    reloadHomeIfChanged();
     stamp(QStringLiteral("tick"));
+}
+
+void FollowEngine::reloadHomeIfChanged()
+{
+    const QString path = homeProfilePath();
+    const QFileInfo info(path);
+    const QDateTime mtime = info.lastModified();
+    if (path == m_homePath && mtime == m_homeMtime)
+        return;
+    m_homePath = path;
+    m_homeMtime = mtime;
+    if (!info.exists())
+        return;
+    const QString product = readSysfs(QStringLiteral("/sys/class/dmi/id/product_name"));
+    HomeProfile next = loadHome(product);
+    if (next.tHome.isEmpty())
+        return;
+    const bool same = next.rTouch == m_home.rTouch && next.rPen == m_home.rPen
+        && next.fingerName == m_home.fingerName && next.penName == m_home.penName
+        && next.fingerVendor == m_home.fingerVendor && next.fingerProduct == m_home.fingerProduct
+        && next.penVendor == m_home.penVendor && next.penProduct == m_home.penProduct;
+    m_home = next;
+    if (same)
+        return;
+    logLine(QStringLiteral("follow reloaded home.json R_touch=%1 R_pen=%2")
+                .arg(m_home.rTouch)
+                .arg(m_home.rPen));
+    resolveTargets();
+    stamp(QStringLiteral("home.json"));
 }
 
 void FollowEngine::onDelayedStamp()
