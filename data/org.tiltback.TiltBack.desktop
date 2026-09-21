@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=TiltBack
+Comment=Tablet orientation clinic
+Exec=tiltback
+Terminal=false
+Categories=Utility;
+StartupNotify=true

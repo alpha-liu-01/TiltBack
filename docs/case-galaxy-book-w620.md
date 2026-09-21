@@ -74,9 +74,11 @@ Not reported as inverted on this machine. Not investigated further.
 3. Compensating residual (applied next): KWin `orientationDBus=8` (`Qt::InvertedLandscapeOrientation`) on both `WCOM0028:00 2D1F:000C Stylus` and `STMD1234:00 06CB:1058`. Persisted in `~/.config/kcminputrc` as `Orientation=8`. Display left at `Rotated90`.
 4. Manual result: picture, finger, and pen now agree for this landscape hold.
 
-That pair is the **home** of this chassis, not a complete fix. `Orientation=8` is pose-specific. Plasma Display Configuration will change `T` and will not recompute `R`. Manual confirmation: Plasma **none** breaks stylus/touch while `R=8` is still set; after the 15s “keep this configuration?” revert, `T` returns to `left` but KWin leaves `R=0`, so landscape is broken again.
+Manual confirmation: `R=8` on both digitizers is correct for **all four** Plasma rotations (none / left / inverted / right). The first “none breaks inputs” report was KWin wiping `R` to `0` on the transform change, not a portrait-specific residual.
 
-Follow-output helper installed and verified: [home-offset-and-follow.md](home-offset-and-follow.md). `tools/tiltback-follow` now runs as a user service and rewrites `R(T)` on live KScreen changes.
+Follow is still required: KWin zeros `Orientation` whenever `T` changes, including the 15s Display Configuration revert. The helper’s job on this chassis is to **re-stamp `R=8`**, not to pick a per-pose matrix.
+
+Wrap-up and the rerunnable script: [w620-runbook.md](w620-runbook.md), `tools/tiltback-w620`.
 
 ## Hypothesis this tests
 
@@ -101,8 +103,9 @@ kscreen-doctor output.eDP-1.rotation.right
 
 Not a GUI. A read-only probe that prints this four-layer table on the machine that has the bug, then one action: “flip picture 180°” via the KWin/KScreen backend, with a revert countdown. If that loop works here, TiltBack has an entry-point backend and a first device profile. The QML wizard comes after the apply/revert path is boring.
 
-## Open questions on this chassis
+## Open questions (not blocking the session fix)
 
-- Is `RIGHT_UP` itself 180° wrong for this unit, or is KWin’s `RIGHT_UP` → `Rotated270` mapping inverted? A live flip will not distinguish those; it will only tell us the session fix.
-- Missing EDID: does KWin treat `eDP-1-unknown` differently when composing input vs output?
-- Cover-attached vs tablet mode: `autoRotation` is `InTabletMode`, but there is no IMU, so that path cannot save us later either.
+- Upstream `RIGHT_UP` vs this hold: the kernel quirk is live and still implies the other landscape. Userspace overrides it; we did not patch the quirk.
+- Missing EDID (`eDP-1-unknown`, size 0×0 mm).
+- No IIO accelerometer; `autoRotation=InTabletMode` cannot help.
+- Type cover touchpad “detected but dead” after a reattach (2026-09-21): KWin still had it enabled at `R=0`; USB instance had changed. Re-check after reboot with `tiltback-w620 --status`. Not part of the digitizer residual.

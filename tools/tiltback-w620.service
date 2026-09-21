@@ -1,0 +1,13 @@
+[Unit]
+Description=TiltBack W620 follow-output residual
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/tiltback-w620 --follow
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=graphical-session.target

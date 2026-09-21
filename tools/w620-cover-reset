@@ -1,0 +1,80 @@
+#!/usr/bin/env python3
+"""USB reset / port power for the Galaxy Book cover (04e8:a00a).
+
+Tried live on the W620 after a dead reconnect:
+
+- USBDEVFS_RESET: kernel `usb 1-5: reset`, same address, hid stays bound.
+- sysfs port/disable and hub PORT_POWER: disconnect + new address, same
+  `descriptor type invalid` / `failed to fetch feature 8` as a physical
+  replug. Touchpad still sends no events.
+
+Sleep/resume remains the only proven recovery. `authorized` 0/1 does not
+work. This helper is kept for re-tests, not as a fix.
+
+    sudo python3 tools/w620-cover-reset
+    sudo python3 tools/w620-cover-reset --delay 2
+"""
+
+from __future__ import annotations
+
+import argparse
+import fcntl
+import os
+import sys
+import time
+from pathlib import Path
+
+VID = "04e8"
+PID = "a00a"
+# include/uapi/linux/usbdevice_fs.h: USBDEVFS_RESET = _IO('U', 20)
+USBDEVFS_RESET = (ord("U") << 8) | 20
+
+
+def find_sys_device() -> Path | None:
+    usb = Path("/sys/bus/usb/devices")
+    if not usb.is_dir():
+        return None
+    for node in usb.iterdir():
+        vend = node / "idVendor"
+        prod = node / "idProduct"
+        if not vend.is_file() or not prod.is_file():
+            continue
+        if vend.read_text().strip() == VID and prod.read_text().strip() == PID:
+            return node
+    return None
+
+
+def reset(dev: Path) -> None:
+    bus = (dev / "busnum").read_text().strip()
+    num = (dev / "devnum").read_text().strip()
+    node = Path(f"/dev/bus/usb/{int(bus):03d}/{int(num):03d}")
+    if not node.exists():
+        raise SystemExit(f"no usb device node {node}")
+    print(f"resetting {dev.name} via {node} (USBDEVFS_RESET)", file=sys.stderr)
+    fd = os.open(node, os.O_WRONLY)
+    try:
+        fcntl.ioctl(fd, USBDEVFS_RESET, 0)
+    finally:
+        os.close(fd)
+    print("reset issued; cover will re-enumerate", file=sys.stderr)
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--delay", type=float, default=0.0, help="seconds to wait first")
+    args = parser.parse_args()
+    if os.geteuid() != 0:
+        print("needs root (USBDEVFS_RESET)", file=sys.stderr)
+        return 1
+    if args.delay:
+        time.sleep(args.delay)
+    dev = find_sys_device()
+    if dev is None:
+        print(f"04e8:a00a not present", file=sys.stderr)
+        return 2
+    reset(dev)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

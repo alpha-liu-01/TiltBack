@@ -1,9 +1,8 @@
 [Desktop Entry]
 Type=Application
-Name=TiltBack Follow
+Name=TiltBack W620
 Comment=Deprecated. Follow is systemd --user tiltback-w620.service only.
 Hidden=true
-Exec=/home/user/.local/bin/tiltback-follow
+Exec=/home/user/.local/bin/tiltback-w620 --follow
 X-KDE-autostart-phase=2
-X-KDE-autostart-after=panel
 StartupNotify=false

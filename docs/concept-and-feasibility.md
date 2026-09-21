@@ -341,21 +341,22 @@ Both can draw buttons. They are not equal for *this* UI.
 
 The interface is not a GNOME Settings page. It is a spatial tool: a live diagram of four disagreeing transforms, a fullscreen calibration overlay, and the need to tell **finger events from pen events in the same window**. Plasma’s own calibration UI is QML for that reason.
 
-**Qt 6 Quick (QML) + a small C++ or Python core** is the better fit:
+**Qt 6 Quick (QML) + a C++ core** is the fit. Not GTK4, not PySide6.
 
 - Custom painted “orientation diagram” and overlay are natural in QML/Qt Quick.
 - Qt’s pointer device API distinguishes mouse, touch, and stylus without fighting GDK’s event condensation.
 - The app must feel native on Plasma *and* GNOME *and* Sway. A Qt Quick utility on GNOME is normal. A libadwaita utility on Plasma is a GNOME app wearing a costume, and libadwaita fights custom chrome.
 - KDE users who already trust the Drawing Tablet KCM will not be asked to learn a second visual language for the same problem space.
 - Shipping one fullscreen `ApplicationWindow` for calibration is a solved Qt pattern.
+- These chassis (W620 m3-7Y30, RT08WT Gemini Lake) choke on a Python session helper. The first follow daemon woke `kscreen-doctor` and a pile of `busctl` processes every 0.4s, three copies at once. The clinic and its follow helper ship as one C++ process speaking D-Bus in-process (`QDBus`). `tools/tiltback-w620` stays a temporary chassis recipe until Phase 4 replaces it.
 
 GTK4 remains a reasonable alternative if the project later wants a GNOME Circle aesthetic, or for a tiny Sway-only helper. It is the wrong default for a DE-agnostic clinic.
 
-Language split, when code exists:
+Language split:
 
 - **QML** for every screen a thumb touches.
-- **C++ or PySide6** for udev, evdev, D-Bus, and process backends.
-- Python is a legitimate MVP if it shortens the time to a usable wizard on the RT08WT. The backend boundary should stay clean enough to rewrite the core without throwing the QML away.
+- **C++** for udev, evdev, D-Bus, DRM probe, and backends. CMake + Qt 6 (Quick, DBus, Gui).
+- No PySide6 MVP. Python in this repo is probe/recipe only.
 
 ## Architecture (when it is time to build)
 
@@ -424,4 +425,57 @@ Do not start by inventing a new protocol or another kernel quirk. Start with a m
 
 Case 1 is a Samsung Galaxy Book 10.6 (SM-W620) on postmarketOS Plasma 6.6 Wayland: native 1280×1920 panel, live DRM `panel orientation=RIGHT_UP` from the 2021 kernel quirk, KWin persisted `Rotated270`, and identity residuals on both the Synaptics touchscreen and the Wacom I2C stylus. The picture is upside down; finger and pen are not. See [case-galaxy-book-w620.md](case-galaxy-book-w620.md).
 
-That case is the first backend (KWin/KScreen), the first two-step clinic (picture, then residual), and the first proof that a userspace clinic is still needed after the kernel has done its job. The session pair is confirmed; follow-output is the remaining half.
+That case is the first backend (KWin/KScreen), the first two-step clinic (picture, then residual), and the first proof that a userspace clinic is still needed after the kernel has done its job. The session pair and an event-driven follow recipe are confirmed. The remaining work is the C++/QML clinic, not another probe.
+
+## Build order
+
+Ship **Qt 6 Quick + C++** (CMake). No PySide6. `tools/tiltback-w620` is a chassis recipe until Phase 4 absorbs it.
+
+**Phase 0 — App skeleton.** CMake project, C++ `QGuiApplication` + QML `ApplicationWindow`, `.desktop` file on Plasma Wayland. One empty page. No backends. This exists so every later phase has a window a thumb can hit.
+
+Build on a fast machine in Alpine 3.22 musl (the W620 is too slow, and a host glibc binary will not run on postmarketOS). The container’s Qt is 6.8; pmOS 26.06 is 6.11 — QML is not precompiled (`NO_CACHEGEN`) so the tablet’s engine can load it.
+
+```sh
+./scripts/build-alpine.sh
+scp build-alpine/tiltback data/org.tiltback.TiltBack.desktop user@W620:
+```
+
+On the tablet: copy the binary to `~/.local/bin/tiltback` and the desktop file to `~/.local/share/applications/`. Launch `tiltback` on `wayland-0`, or from the Plasma app launcher.
+
+**Phase 1 — Probe and four-card dashboard (read-only).** The first real product. Four cards — Picture, Finger, Pen, Arrow — filled from DMI, DRM `panel-orientation`, KScreen `T`, and KWin `InputDevice` residuals via `QDBus` (never fork `kscreen-doctor` in a loop). Identify devices by udev name / VID:PID, never `eventN`. Deny the type-cover class. Arrow may say “not inverted / not probed.” A “copy report” dump is the bug-report seed.
+
+Done when the W620 dashboard shows `T=Rotated90` and `R=8` on both digitizers without writing anything.
+
+**Phase 2 — Session apply for Picture, with revert.** One backend method: set the KWin/KScreen output transform. 10-second “keep this?” that restores the previous `T`. Do not touch residuals yet.
+
+Done when you can flip the W620 `left` ↔ `right` and the countdown puts the picture back.
+
+**Phase 3 — Session apply for Finger and Pen, same revert.** Write `orientationDBus` / matrix on the *named* absolute devices only. Revert restores the previous `R` on each layer independently. Applying Finger must not silently write Pen (the “lock layers” toggle can come later; default is independent).
+
+Done when the W620 can go `R=0` → `R=8` and back, on touch and stylus separately, without the cover or relative mice moving.
+
+**Phase 4 — Home tuple, persist, follow.** The model the W620 unlocked, in-process in the C++ app (or a tiny C++ helper), not a Python poller.
+
+- Store `home = (T_home, R_touch, R_pen)`
+- Persist in compositor user config (`kwinoutputconfig.json` + `kcminputrc`)
+- Follow: KWin `PropertiesChanged`, directory watch on `kwinoutputconfig.json` (inode replace), and a cheap in-process Get of the two digitizer orientations. Never write `T` unless the user asked. Never spawn `kscreen-doctor` or `busctl` in a loop. One process.
+- W620 rule: `R(T) = 8` for all four poses, because KWin zeros `R` on every transform change.
+- `tools/tiltback-w620` becomes a profile of this helper, then goes away.
+
+Done when Display Configuration’s 15s revert (or a manual pose change) leaves finger and pen on the picture **immediately**, not on a 30s safety timer.
+
+**Phase 5 — Wizard (keyboard-free).** The spatial UI on top of 1–4: “this edge is the top,” rotate Picture, tap the crosshair with a finger, tap it with the pen. Controls duplicated on edges/corners. Volume keys optional. Saves a draft home, then uses the Phase 2–4 apply path.
+
+Done when someone can redo the W620 clinic from the GUI with no SSH and no typed commands.
+
+**Phase 6 — Arrow, then the RT08WT.** Yes/no: “does this pointer point up and left?” Software-cursor workaround only if that backend has a switch. If it does not, say so — do not ship a fake overlay or a rotated cursor theme.
+
+Then point the **same dashboard** at the raytrektab RT08WT. Short diagnose, no kernel quest. That machine is the first real Arrow test and profile zero, not a pre-app research phase.
+
+**Phase 7 — Export only.** Draft udev / `video=` / quirk snippet as text the user can copy. Polkit udev apply and kernel-cmdline install stay out.
+
+**Phase 8 — Second backend (Xorg).** Same narrow interface: list outputs, get/set `T`, list absolute devices, get/set `R`, “can you force a software cursor?” Mutter/wlroots/Hyprland after Xorg actually runs.
+
+**Skip or defer:** udev as the default residual, IMU/auto-rotate, fake cursors, GTK, PySide6, button/pressure editors, the cover touchpad, community profile service.
+
+**Why this order:** Phase 1 is useful alone and is how the RT08WT should be met. Phases 2–3 force apply/revert before the wizard can double-transform anyone. Phase 4 is MVP because without follow the clinic dies in Display Configuration. Phase 5 is UX on a proven backend. Phase 6 is the first unproven layer, so it comes after the app can show and revert, not before. C++ from Phase 0 so the W620-class CPU never runs a Python session helper again.

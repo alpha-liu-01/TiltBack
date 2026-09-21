@@ -141,7 +141,9 @@ Out of scope remains the same: TiltBack is not a compositor and not a replacemen
 
 ## Proof on the W620 (2026-09-21)
 
-A user-session helper `tools/tiltback-follow` is installed on the tablet (`~/.local/bin/tiltback-follow`, systemd `--user` + Plasma autostart).
+A user-session helper `tools/tiltback-w620 --follow` is the chassis recipe (`~/.local/bin/tiltback-w620`, **one** systemd `--user` unit). Do not also Plasma-autostart it.
+
+The first helper polled `kscreen-doctor -j` every 0.4s and walked every KWin input with `busctl` every 2s. Three copies (unit + two `.desktop` files) produced the ~80% CPU spike. The replacement never forks those tools: in-process D-Bus Gets on the two digitizers, a directory watch (KWin replaces the `kwinoutputconfig.json` inode), and a 0.4s tick because KWin often zeros `R` without a notify. The app’s Phase 4 follow must be this design in C++, not a Python port of the first poller.
 
 First rule (wrong): landscape `R=8`, portrait `R=0`. Tap test: 90° and 270° correct; **none and 180° still 180° upside down**.
 

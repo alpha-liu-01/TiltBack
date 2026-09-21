@@ -1,0 +1,5 @@
+/build/
+/build-alpine/
+CMakeUserPresets.json
+.cache/
+*.user
