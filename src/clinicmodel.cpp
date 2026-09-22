@@ -135,6 +135,7 @@ ClinicModel::ClinicModel(QObject *parent)
         m_arrowSource = QStringLiteral("diagnose only");
     }
     bindTiltSignals();
+    TiltBack::loadTiltHolds(&m_tiltHolds, nullptr);
     refresh();
 }
 
@@ -374,6 +375,7 @@ void ClinicModel::fillTiltCard()
     m_tiltCanApply = m_tilt.honesty == TiltBack::TiltHonesty::Readable
         && !TiltBack::kernelMatrixBlocksApply(m_tilt.kernelMatrix)
         && (!m_tilt.name.isEmpty() || !m_tilt.modalias.isEmpty());
+    m_tiltCanSolve = false;
     m_tiltValue = m_tilt.honestyText;
     if (m_tilt.honesty == TiltBack::TiltHonesty::NoSensor) {
         m_tiltDetail = m_tilt.proxyPresent
@@ -411,6 +413,30 @@ void ClinicModel::fillTiltCard()
     const QString e = m_tilt.orientation.isEmpty() ? QStringLiteral("(none)")
                                                    : m_tilt.orientation;
     d << QStringLiteral("enum=%1  T=%2").arg(e, m_outputTransform);
+    {
+        const QStringList order = {QStringLiteral("bottom"), QStringLiteral("right"),
+                                   QStringLiteral("top"), QStringLiteral("left")};
+        QStringList got;
+        for (const QString &edge : order) {
+            if (m_tiltHolds.contains(edge))
+                got << edge;
+        }
+        if (!got.isEmpty())
+            d << QStringLiteral("holds %1").arg(got.join(QLatin1Char(' ')));
+        m_tiltCanSolve = TiltBack::tiltHoldCount(m_tiltHolds) >= 2;
+        if (m_tiltCanSolve) {
+            QString solved;
+            double residual = 0;
+            QString serr;
+            const int idx = TiltBack::solveMountMatrix(m_tiltHolds, &solved,
+                                                       &residual, &serr,
+                                                       m_tilt.udevMatrix);
+            if (idx >= 0)
+                d << QStringLiteral("solve %1/8  %2").arg(idx).arg(solved);
+            else if (!serr.isEmpty())
+                d << serr;
+        }
+    }
     if (!m_tilt.reason.isEmpty() && m_tilt.honesty != TiltBack::TiltHonesty::Readable)
         d << m_tilt.reason;
     if (TiltBack::kernelMatrixBlocksApply(m_tilt.kernelMatrix))
@@ -743,6 +769,67 @@ void ClinicModel::revertTilt()
         m_tiltError = err;
     m_tiltLastApplied.clear();
     refresh();
+}
+
+void ClinicModel::captureTilt(const QString &edge)
+{
+    const QString e = TiltBack::normalizeTiltEdge(edge);
+    m_tilt = TiltBack::TiltProbe::probe();
+    if (e.isEmpty()) {
+        m_tiltError = QStringLiteral("hold is bottom|right|top|left");
+        fillTiltCard();
+        emit changed();
+        return;
+    }
+    if (m_tilt.honesty != TiltBack::TiltHonesty::Readable || !m_tilt.rawOk) {
+        m_tiltError = QStringLiteral("Tilt capture needs readable sysfs raw");
+        fillTiltCard();
+        emit changed();
+        return;
+    }
+    double x, y, z;
+    if (!TiltBack::parseAccelVec(m_tilt.raw, &x, &y, &z)) {
+        m_tiltError = QStringLiteral("cannot parse raw %1").arg(m_tilt.raw);
+        fillTiltCard();
+        emit changed();
+        return;
+    }
+    QString err;
+    if (!TiltBack::accelVecUsable(x, y, z, &err)) {
+        m_tiltError = err;
+        fillTiltCard();
+        emit changed();
+        return;
+    }
+    if (!TiltBack::saveTiltHold(e, m_tilt.raw, &err)) {
+        m_tiltError = err;
+        fillTiltCard();
+        emit changed();
+        return;
+    }
+    TiltBack::loadTiltHolds(&m_tiltHolds, nullptr);
+    m_tiltError.clear();
+    fillTiltCard();
+    buildReport();
+    emit changed();
+}
+
+void ClinicModel::solveTilt()
+{
+    m_tilt = TiltBack::TiltProbe::probe();
+    TiltBack::loadTiltHolds(&m_tiltHolds, nullptr);
+    QString matrix;
+    double residual = 0;
+    QString err;
+    const int idx = TiltBack::solveMountMatrix(m_tiltHolds, &matrix, &residual, &err,
+                                              m_tilt.udevMatrix);
+    if (idx < 0) {
+        m_tiltError = err;
+        fillTiltCard();
+        emit changed();
+        return;
+    }
+    applyTilt(matrix);
 }
 
 void ClinicModel::onRevertTick()

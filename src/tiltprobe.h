@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QMap>
 #include <QString>
 
 namespace TiltBack {
@@ -50,5 +51,17 @@ bool requestAccelApply(const QString &name, const QString &modalias,
                        const QString &matrix, QString *nonce, QString *error);
 bool requestAccelRemove(QString *nonce, QString *error);
 bool waitAccelStamp(const QString &nonce, QString *error);
+
+QString normalizeTiltEdge(const QString &edge);
+QString tiltHoldsPath();
+bool loadTiltHolds(QMap<QString, QString> *holds, QString *error);
+bool saveTiltHold(const QString &edge, const QString &raw, QString *error);
+bool parseAccelVec(const QString &csv, double *x, double *y, double *z);
+bool accelVecUsable(double x, double y, double z, QString *error);
+int tiltHoldCount(const QMap<QString, QString> &holds);
+int solveMountMatrix(const QMap<QString, QString> &holds, QString *matrix,
+                     double *residual, QString *error,
+                     const QString &prefer = QString());
+bool selfTestTiltSolve(QString *error);
 
 } // namespace TiltBack

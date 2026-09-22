@@ -41,6 +41,7 @@ class ClinicModel : public QObject
     Q_PROPERTY(QString tiltSource READ tiltSource NOTIFY changed)
     Q_PROPERTY(QString tiltBackend READ tiltBackend NOTIFY changed)
     Q_PROPERTY(bool tiltCanApply READ tiltCanApply NOTIFY changed)
+    Q_PROPERTY(bool tiltCanSolve READ tiltCanSolve NOTIFY changed)
 
     Q_PROPERTY(QString reportText READ reportText NOTIFY changed)
     Q_PROPERTY(QString homeLine READ homeLine NOTIFY changed)
@@ -93,6 +94,7 @@ public:
     QString tiltSource() const { return m_tiltSource; }
     QString tiltBackend() const { return m_tiltBackend; }
     bool tiltCanApply() const { return m_tiltCanApply; }
+    bool tiltCanSolve() const { return m_tiltCanSolve; }
 
     QString reportText() const { return m_reportText; }
     QString homeLine() const { return m_homeLine; }
@@ -130,6 +132,8 @@ public:
     Q_INVOKABLE void applyTilt(const QString &kind);
     Q_INVOKABLE void keepTilt();
     Q_INVOKABLE void revertTilt();
+    Q_INVOKABLE void captureTilt(const QString &edge);
+    Q_INVOKABLE void solveTilt();
     Q_INVOKABLE void saveHome();
     Q_INVOKABLE void installFollow();
 
@@ -214,8 +218,10 @@ private:
     QString m_tiltSource = QStringLiteral("sysfs + udev + SensorProxy");
     QString m_tiltBackend = QStringLiteral("sysfs + udev + SensorProxy");
     bool m_tiltCanApply = false;
+    bool m_tiltCanSolve = false;
     TiltBack::TiltFact m_tilt;
     QString m_tiltError;
+    QMap<QString, QString> m_tiltHolds;
 
     QString m_reportText;
     QString m_homeLine;

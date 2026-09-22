@@ -14,7 +14,7 @@ One C++ / Qt Quick binary (`tiltback`) provides the dashboard, session apply, pe
 
 - **Picture (T)** — rotate the builtin panel: None, Left, Inverted, Right.
 - **Finger / Pen (R)** — set a residual on the named digitizers (`R=0 / 1 / 2 / 4 / 8`). Devices are identified by name and USB/I2C VID:PID, never by `eventN`.
-- **Tilt** — classifies the accelerometer as no sensor, unreadable, or readable. On a readable IMU, Prev / Next steps the eight panel-plane matrices; Identity / Wiki jump to those two. Apply writes `ACCEL_MOUNT_MATRIX` via `tiltback-accel.path` (not `LIBINPUT_CALIBRATION_MATRIX`). Follow never writes `T`.
+- **Tilt** — classifies the accelerometer as no sensor, unreadable, or readable. On a readable IMU, Prev / Next steps the eight panel-plane matrices; Identity / Wiki jump to those two; Bottom / Right / Top / Left capture “this edge is down” and Solve snaps to the nearest of the eight. Apply writes `ACCEL_MOUNT_MATRIX` via `tiltback-accel.path` (not `LIBINPUT_CALIBRATION_MATRIX`). Follow never writes `T`.
 - **Keep / Revert** — each apply has an independent 10-second countdown so a bad guess can be undone. Tilt’s banner is a sensor reload. Revert restores the matrix that was live when the cycle started.
 - **Save home** — stores `(T, R_touch, R_pen)` and `accelMountMatrix` in `~/.config/tiltback/home.json` (Plasma also writes `kcminputrc`). Follow does not apply the mount matrix.
 - **Follow** — a user systemd unit restamps residuals when the compositor changes T. Follow never writes the picture transform.

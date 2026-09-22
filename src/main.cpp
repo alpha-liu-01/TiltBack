@@ -85,6 +85,36 @@ int main(int argc, char *argv[])
         return clinic.persistLine().startsWith(QLatin1String("persist failed")) ? 2 : 0;
     }
 
+    if (hasArg(argc, argv, "--self-test-tilt-solve")) {
+        QCoreApplication app(argc, argv);
+        setAppIdentity(app);
+        QString err;
+        if (!TiltBack::selfTestTiltSolve(&err)) {
+            std::fprintf(stderr, "%s\n", qPrintable(err));
+            return 2;
+        }
+        std::fprintf(stdout, "tilt-solve self-test ok (wiki 5/8)\n");
+        return 0;
+    }
+
+    const int captureCore = [&]() {
+        for (int i = 1; i < argc; ++i) {
+            if (std::strcmp(argv[i], "--capture-tilt") == 0)
+                return i;
+        }
+        return -1;
+    }();
+    if (captureCore >= 0) {
+        QCoreApplication app(argc, argv);
+        setAppIdentity(app);
+        const QString edge = captureCore + 1 < argc ? QString::fromLocal8Bit(argv[captureCore + 1])
+                                                    : QString();
+        ClinicModel clinic;
+        clinic.captureTilt(edge);
+        std::fprintf(stdout, "%s\n", qPrintable(clinic.tiltDetail()));
+        return clinic.tiltDetail().contains(QLatin1String("holds ")) ? 0 : 2;
+    }
+
     QGuiApplication app(argc, argv);
     setAppIdentity(app);
     app.setDesktopFileName(QStringLiteral("org.tiltback.TiltBack"));
@@ -160,6 +190,22 @@ int main(int argc, char *argv[])
         std::fprintf(stdout, "%s\n%s\n", qPrintable(clinic.tiltValue()),
                      qPrintable(clinic.reportText()));
         return 0;
+    }
+    if (args.contains(QStringLiteral("--solve-tilt"))) {
+        ClinicModel clinic;
+        clinic.solveTilt();
+        if (!clinic.pendingTiltRevert()) {
+            std::fprintf(stderr, "%s\n%s\n", qPrintable(clinic.tiltDetail()),
+                         qPrintable(clinic.reportText()));
+            return 2;
+        }
+        std::fprintf(stdout, "solved tilt — sensor reload, auto-revert in 10s\n");
+        QTimer::singleShot(11000, &app, &QCoreApplication::quit);
+        const int rc = app.exec();
+        clinic.refresh();
+        std::fprintf(stdout, "%s\n%s\n", qPrintable(clinic.tiltValue()),
+                     qPrintable(clinic.reportText()));
+        return rc;
     }
 
     if (args.contains(QStringLiteral("--report"))) {

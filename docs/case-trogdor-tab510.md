@@ -97,6 +97,17 @@ Enum stayed `undefined`: raw was Z-dominant (`~0, ~-120, ~16700`) the whole time
 
 T3 cycle (2026-09-22, `user@10.0.0.117`). Path unit still enabled. Landscape-ish hold, enum `left-up`, live `T` `Rotation 2` (`Rotated90`). Identity (`0/8`) changed live udev to identity and the enum to `bottom-up` (no reboot). Wiki (`5/8`) restored udev and enum `left-up`. Our rule stayed one well-formed line on `cros-ec-accel` only; `udevadm test` on `iio:device0` / `event0` still showed the wiki leak value, not a second identity. Wiki file hash unchanged. Keep left `61-tiltback-accel.rules` at the wiki 3×3. `accelMountMatrix` is the `home.json` field Save home writes; follow does not apply it. T0 already showed both portraits match this wiki frame.
 
+T4 four-hold (2026-09-22, live). Sentence is **this edge is down** in the iio-sensor-proxy panel frame (not `T_home`). Capture is sysfs raw. Live holds (enum → edge-down):
+
+| Edge down | Enum | Raw |
+| --- | --- | --- |
+| right | `left-up` | `288, 12822, 10592` |
+| top | `bottom-up` | `-13932, 120, 9570` |
+| left | `right-up` | `-656, -14132, 7678` |
+| bottom | `normal` | `13696, 446, 9616` |
+
+Those four snap to wiki `5/8` (in-plane residual `0.0009`, tied with index 1 on Z sign; live udev prefers 5). First-pass Y expected signs were inverted vs this box (`+Y` is `bottom-up`, not `normal`); the solver now matches that. Apply wrote the wiki 3×3 through the helper; wiki file hash unchanged. Synthetic `--self-test-tilt-solve` still snaps to `5/8`.
+
 ## What this proves about Tilt
 
 1. **T2 chassis is this tablet**, not the W620 (no IIO) and not the CachyOS RT08WT (IIO unreadable).

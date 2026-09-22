@@ -351,6 +351,54 @@ ApplicationWindow {
                         onClicked: clinic.applyTilt("wiki")
                     }
                 }
+                Row {
+                    visible: clinic.tiltCanApply
+                    spacing: 12
+                    width: parent.width
+
+                    Button {
+                        width: (parent.width - parent.spacing) / 2
+                        height: Math.max(64, Math.round(root.height * 0.08))
+                        text: qsTr("Bottom")
+                        font.pixelSize: Math.max(20, Math.round(root.width * 0.024))
+                        onClicked: clinic.captureTilt("bottom")
+                    }
+                    Button {
+                        width: (parent.width - parent.spacing) / 2
+                        height: Math.max(64, Math.round(root.height * 0.08))
+                        text: qsTr("Right")
+                        font.pixelSize: Math.max(20, Math.round(root.width * 0.024))
+                        onClicked: clinic.captureTilt("right")
+                    }
+                }
+                Row {
+                    visible: clinic.tiltCanApply
+                    spacing: 12
+                    width: parent.width
+
+                    Button {
+                        width: (parent.width - parent.spacing) / 2
+                        height: Math.max(64, Math.round(root.height * 0.08))
+                        text: qsTr("Top")
+                        font.pixelSize: Math.max(20, Math.round(root.width * 0.024))
+                        onClicked: clinic.captureTilt("top")
+                    }
+                    Button {
+                        width: (parent.width - parent.spacing) / 2
+                        height: Math.max(64, Math.round(root.height * 0.08))
+                        text: qsTr("Left")
+                        font.pixelSize: Math.max(20, Math.round(root.width * 0.024))
+                        onClicked: clinic.captureTilt("left")
+                    }
+                }
+                Button {
+                    visible: clinic.tiltCanApply && clinic.tiltCanSolve
+                    width: parent.width
+                    height: Math.max(64, Math.round(root.height * 0.08))
+                    text: qsTr("Solve")
+                    font.pixelSize: Math.max(20, Math.round(root.width * 0.024))
+                    onClicked: clinic.solveTilt()
+                }
             }
             LayerCard {
                 title: qsTr("Home / Follow")
