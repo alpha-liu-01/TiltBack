@@ -209,7 +209,11 @@ TiltFact TiltProbe::probe()
         f.raw = c.raw;
         f.rawError = c.rawError;
         f.kernelMatrix = readSysfs(c.path + QStringLiteral("/in_accel_mount_matrix"));
-        f.modalias = walkModalias(c.path + QStringLiteral("/device"));
+        const QString canon = QFileInfo(c.path).canonicalFilePath();
+        const QString walkFrom = canon.isEmpty() ? c.path : canon;
+        f.modalias = walkModalias(walkFrom + QStringLiteral("/device"));
+        if (f.modalias.isEmpty())
+            f.modalias = walkModalias(walkFrom);
         if (f.modalias.isEmpty() && !c.name.isEmpty()
             && !c.name.contains(QLatin1Char(':'))) {
             f.modalias = QStringLiteral("platform:%1").arg(c.name);
@@ -233,6 +237,16 @@ TiltFact TiltProbe::probe()
                 f.devNode = guess;
         }
         f.devMode = unixMode(f.devNode);
+
+        QString currentTrigger = readSysfs(c.path + QStringLiteral("/trigger/current_trigger"));
+        if (currentTrigger.isEmpty())
+            currentTrigger = readSysfs(c.path + QStringLiteral("/current_trigger"));
+        const bool hasScan = QFile::exists(
+            c.path + QStringLiteral("/scan_elements/in_accel_x_en"));
+        if (f.proxyType.contains(QLatin1String("iio-buffer-accel")) && hasScan
+            && currentTrigger.isEmpty()) {
+            f.bufferNote = QStringLiteral("buffer EPERM / no trigger; using poll");
+        }
     }
 
     QDBusConnection sys = QDBusConnection::systemBus();
@@ -262,6 +276,8 @@ const QString kMountMatrix[] = {
     QStringLiteral("0, 1, 0; -1, 0, 0; 0, 0, -1"),
     QStringLiteral("-1, 0, 0; 0, -1, 0; 0, 0, -1"),
     QStringLiteral("0, -1, 0; 1, 0, 0; 0, 0, -1"),
+    QStringLiteral("1, 0, 0; 0, -1, 0; 0, 0, -1"),
+    QStringLiteral("-1, 0, 0; 0, 1, 0; 0, 0, -1"),
 };
 
 QString compactMatrix(const QString &matrix)
@@ -285,7 +301,7 @@ QString wikiMountMatrix()
 
 int mountMatrixCount()
 {
-    return 8;
+    return 10;
 }
 
 QString mountMatrixAt(int index)
@@ -679,10 +695,9 @@ int solveMountMatrix(const QMap<QString, QString> &holds, QString *matrix,
 
     int best = -1;
     double bestScore = 1e9;
-    double scores[8];
-    for (int i = 0; i < mountMatrixCount(); ++i)
-        scores[i] = 1e9;
-    for (int i = 0; i < mountMatrixCount(); ++i) {
+    const int nMat = mountMatrixCount();
+    QVector<double> scores(nMat, 1e9);
+    for (int i = 0; i < nMat; ++i) {
         double m[9];
         if (!parseMount9(mountMatrixAt(i), m))
             continue;
@@ -716,7 +731,7 @@ int solveMountMatrix(const QMap<QString, QString> &holds, QString *matrix,
         *residual = bestScore;
     if (best < 0 || bestScore > 0.5) {
         if (error)
-            *error = QStringLiteral("solve missed the eight (residual %1) — use Next")
+            *error = QStringLiteral("solve missed the discrete set (residual %1) — use Next")
                          .arg(bestScore, 0, 'f', 3);
         return -1;
     }
@@ -729,39 +744,49 @@ int solveMountMatrix(const QMap<QString, QString> &holds, QString *matrix,
 
 bool selfTestTiltSolve(QString *error)
 {
-    double m[9];
-    if (!parseMount9(wikiMountMatrix(), m)) {
-        if (error)
-            *error = QStringLiteral("cannot parse wiki matrix");
-        return false;
-    }
-    // Orthogonal inverse is M^T.
-    const double mt[9] = {m[0], m[3], m[6], m[1], m[4], m[7], m[2], m[5], m[8]};
     const char *edges[] = {"bottom", "right", "top", "left"};
-    QMap<QString, QString> holds;
-    for (const char *edge : edges) {
-        double dx, dy, dz;
-        if (!expectedEdgeDown(QLatin1String(edge), &dx, &dy, &dz)) {
+    auto snap = [&](const QString &known, int expect, const char *label) -> bool {
+        double m[9];
+        if (!parseMount9(known, m)) {
             if (error)
-                *error = QStringLiteral("bad edge %1").arg(QLatin1String(edge));
+                *error = QStringLiteral("cannot parse %1 matrix").arg(QLatin1String(label));
             return false;
         }
-        double sx, sy, sz;
-        applyMount(mt, dx, dy, dz, &sx, &sy, &sz);
-        holds.insert(QLatin1String(edge),
-                     QStringLiteral("%1,%2,%3").arg(sx).arg(sy).arg(sz));
-    }
-    QString matrix;
-    double residual = 99;
-    const int idx = solveMountMatrix(holds, &matrix, &residual, error,
-                                    wikiMountMatrix());
-    if (idx != 5 || mountMatrixIndex(matrix) != 5 || residual > 1e-6) {
-        if (error)
-            *error = QStringLiteral("expected wiki 5/8, got %1 residual %2")
-                         .arg(idx)
-                         .arg(residual);
+        const double mt[9] = {m[0], m[3], m[6], m[1], m[4], m[7], m[2], m[5], m[8]};
+        QMap<QString, QString> holds;
+        for (const char *edge : edges) {
+            double dx, dy, dz;
+            if (!expectedEdgeDown(QLatin1String(edge), &dx, &dy, &dz)) {
+                if (error)
+                    *error = QStringLiteral("bad edge %1").arg(QLatin1String(edge));
+                return false;
+            }
+            double sx, sy, sz;
+            applyMount(mt, dx, dy, dz, &sx, &sy, &sz);
+            holds.insert(QLatin1String(edge),
+                         QStringLiteral("%1,%2,%3").arg(sx).arg(sy).arg(sz));
+        }
+        QString matrix;
+        double residual = 99;
+        const int idx = solveMountMatrix(holds, &matrix, &residual, error, known);
+        if (idx != expect || mountMatrixIndex(matrix) != expect || residual > 1e-6) {
+            if (error)
+                *error = QStringLiteral("expected %1 %2/%3, got %4 residual %5")
+                             .arg(QLatin1String(label))
+                             .arg(expect)
+                             .arg(mountMatrixCount())
+                             .arg(idx)
+                             .arg(residual);
+            return false;
+        }
+        return true;
+    };
+    if (!snap(wikiMountMatrix(), 5, "wiki"))
         return false;
-    }
+    if (!snap(mountMatrixAt(8), 8, "180-X"))
+        return false;
+    if (error)
+        error->clear();
     return true;
 }
 

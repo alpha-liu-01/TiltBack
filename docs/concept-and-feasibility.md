@@ -269,7 +269,7 @@ Suggested order:
 2. **Diagnose-only Tilt card on every backend.** Done. Honesty before writes. W620 and a still-dead RT08WT are success criteria for this step, not failures.
 3. **Apply + Keep/Revert on the readable-IMU chassis.** T2 helper and T3 eight-matrix cycle are done (Prev / Next / Identity / Wiki, `61-tiltback-accel.rules`, `accelMountMatrix` on Save home). T4 is the four-hold solve on that helper.
 4. **Four-hold solve after the cycle is proven.** Done. Same helper. Synthetic wiki snap `5/8`.
-5. **RT08WT stays diagnose** unless step 1 moved it to state 3. Do not paper over a dead buffer with a udev matrix.
+5. **RT08WT is now the T5 chassis.** Live probe at `alpha@10.0.0.109` (2026-09-22): sysfs raw is readable, SensorProxy enum is live (`bottom-up` / `right-up`), kernel `in_accel_mount_matrix` is identity. The ring-buffer EPERM is a dead sibling, not the honesty state. Do not paper over a *dead* buffer with a udev matrix; do apply a matrix once poll (or raw) already reaches state 3.
 
 The Acer Chromebook Tab 10 is a candidate *only if* a live probe shows `cros-ec-accel` (or any IIO) and SensorProxy enums that change when the tablet is tipped. The X11 clinic there did not record that; do not assume Trogdor hardware.
 
@@ -284,7 +284,7 @@ Done (2026-09-22). Three owned chassis, one T2 box. The CachyOS RT08WT is still 
 | Chassis | IIO | SensorProxy | Tilt state | T2? |
 | --- | --- | --- | --- | --- |
 | W620 (prior) | none | n/a | no sensor | no |
-| RT08WT CachyOS | `KIOX000A` (`i2c-KIOX000A:00`) | T0 undefined; T1 live `bottom-up` | T0 unreadable; T1 readable | no (Trogdor remains T2) |
+| RT08WT CachyOS `alpha@10.0.0.109` | `KIOX000A` / `kxcjk1013` | live (`bottom-up`, `right-up`); buffer EPERM every boot | readable via **poll**; kernel matrix identity; no hwdb | T5 (poll + T4), not T2 |
 | Trogdor Tab 510 `user@10.0.0.117` | `cros-ec-accel`, poll, wiki matrix | live (`left-up` at rest) | readable + wiki-corrected | **yes** |
 
 T2 contract from that probe: match `platform:cros-ec-accel` / `name=cros-ec-accel`; persist `0, 1, 0; -1, 0, 0; 0, 0, -1`; apply is udev + proxy reload (poll path); do not compose on sysfs (empty); do not use `LIBINPUT_CALIBRATION_MATRIX`; follow still does not write `T`. The wiki file’s broken line wrap leaked `ACCEL_MOUNT_MATRIX` onto every device — T2 must not copy that.
@@ -293,7 +293,7 @@ T2 contract from that probe: match `platform:cros-ec-accel` / `name=cros-ec-acce
 
 Done (2026-09-22). Fifth dashboard row + `--report` Tilt lines. Honesty is `no sensor` / `unreadable (…)` / `readable`. No writes. Follow unchanged. `--report` Tilt: no sensor when IIO and SensorProxy are absent (W620 SSH was down this session; same string on a box with no accel). CachyOS RT08WT T1 live is **readable** (`KIOX000A` / `enum=bottom-up` / `T=Rotated180`) — T0 had called that chassis unreadable. Trogdor Tab 510 → readable, enum next to live `T`. T2 chassis stays the Trogdor.
 
-**T2 — Privileged apply helper.** Small system path unit (same shape as HID rebind, **not** the digitizer `61-tiltback.rules` file): install/remove `61-tiltback-accel.rules` matching the probed IIO identity, `udevadm control --reload` + trigger, restart `iio-sensor-proxy.service`. Clinic Keep writes the rule; Revert deletes it and reloads again. Countdown text is “sensor reload,” not a fake 10s compositor revert. Hold follow for the reload (`clinic-hold`) so a `T` change during the test is not a residual fight. Still no `--follow` accel loop.
+**T2 — Privileged apply helper.** Small system path unit (same shape as HID rebind, **not** the digitizer `61-tiltback.rules` file): install/remove `61-tiltback-accel.rules` matching the probed IIO identity, `udevadm control --reload` + trigger, restart `iio-sensor-proxy.service`. Clinic Keep writes the rule; Revert deletes it and reloads again. Countdown text is “sensor reload,” not a fake 10s compositor revert. Do **not** hold follow for the reload: KWin zeros `R` when `T` jumps, and the banner is untappable without a restamp. Still no `--follow` accel loop.
 
 Done (2026-09-22). Main package: `/usr/libexec/tiltback/apply-accel.sh`, `tiltback-accel.path` (`80-tiltback.preset`). Tilt card Identity / Wiki when readable. `--apply-tilt identity|wiki` / `--revert-tilt`. On the Trogdor Tab 510, Identity changed the live `ACCEL_MOUNT_MATRIX` on `cros-ec-accel` without a reboot; Revert restored the wiki value. `udevadm test` on a PMIC ADC and evdev did not pick up our identity `ENV`. Wiki file left in place. Enum stayed `undefined` while the chassis was Z-dominant flat (the landscape hold was not available).
 
@@ -305,7 +305,16 @@ Done (2026-09-22). Tilt card Prev / Next plus Identity / Wiki on the T2 helper. 
 
 Done (2026-09-22). Tilt card Bottom / Right / Top / Left capture sysfs raw (sensor space, refuse flat). Solve scores the T3 eight in the panel plane (lean/Z ignored) and applies via the T2 helper. In-plane holds cannot see Z sign; a residual tie prefers the live udev matrix. Trogdor live four-hold snaps to wiki `5/8`. `--capture-tilt` / `--solve-tilt` / `--self-test-tilt-solve`. Follow still does not write `T`.
 
-**T5 — Dead-IIO honesty only.** RT08WT (and any later state-2 box) keeps the T1 string. Optional: copy-report the trigger/EPERM lines. A udev `MODE`/`GROUP` or kernel trigger is out of T2 unless T0 showed that single change reaches state 3; then it is a one-off enable, still not the mount-matrix product.
+**T5 — RT08WT portraits swapped, buffer unused.** The missing ring buffer is not the swap. `kxcjk1013` never registers an IIO trigger, so `buffer/enable` is EPERM; `/dev/iio:device0` stays `root:root` `0600`. Sysfs `in_accel_*_raw` is already world-readable. `iio-sensor-proxy` 3.9 advertises `iio-poll-accel iio-buffer-accel`, fails the buffer driver, and still publishes an enum from poll. T4 already captures that raw; it does not open the char device.
+
+Suggested fix (two steps, same helper as T2, no `--follow` `T` loop):
+
+1. **Optional poll-force** — one udev line that *replaces* `IIO_SENSOR_PROXY_TYPE` with `iio-poll-accel` on `ATTR{name}=="i2c-KIOX000A:00"` (Trogdor `99-google-trogdor-accel.rules` pattern). This is the T0 “single change that reaches state 3” clause, not a `MODE`/`GROUP` on `/dev/iio:device0`. Skip it if a four-hold already shows a stable enum without it.
+2. **Mount matrix** — kernel matrix is identity, no systemd hwdb hit for `svnThirdwaveCorporation:pnRT08WT`, so `ENV{ACCEL_MOUNT_MATRIX}` is safe (no compose). Swapped *portraits* with good landscapes is 180° about X (`1, 0, 0; 0, -1, 0; 0, 0, -1`), which is **not** in the T3 eight (those only rotate in the panel plane). Swapped *everything* is T3 index 2/6. Four-hold raw + enum vs live `T` picks which; apply via the existing helper. Expand the discrete set by those two axis-180 matrices only if the score needs them.
+
+A still-dead IIO (raw denied *and* enum undefined after a landscape hold) stays the T1 string. `MODE`/`GROUP`, `iio-trig-sysfs`, and TiltBack-as-proxy stay out.
+
+Done (2026-09-22). Discrete set is ten: T3 eight plus 180° about X (`8`) and Y (`9`). `--self-test-tilt-solve` snaps wiki → `5/10` and 180-X → `8/10`. Readable-via-poll keeps the T1 `readable` string and copy-reports `buffer EPERM / no trigger; using poll`. Helper match is `ATTR{name}=="i2c-KIOX000A:00"` plus probed `ATTRS{modalias}=="acpi:KIOX000A:KIOX000A:"`. Arch `0.0.0-4` on `alpha@10.0.0.109`: labeled four-hold snaps to identity `0/10`; helper wrote that 3×3 and Revert removed the rule. Follow did not write `T`. No poll-force. See [case-rt08wt.md](case-rt08wt.md).
 
 Out of these steps: TiltBack-as-`iio-sensor-proxy`, writing `T` from `--follow`, `LIBINPUT_CALIBRATION_MATRIX` for gravity, composing udev on top of a non-identity sysfs matrix, greeter copies of the accel rule (IIO is system-wide).
 
@@ -583,10 +592,10 @@ TiltBack is a **KWin + X11 + Mutter clinic**. One C++/QML binary (`tiltback`) do
 
 ### What a user can do
 
-- Open a maximized dashboard: Picture, Finger, Pen, Arrow, Tilt, Home / Follow. Cards show the live backend string (`KScreen` / `KWin`, `RandR` / `XInput CTM`, or `Mutter DisplayConfig` / `udev constant`). Tilt is `sysfs + udev + SensorProxy`: no sensor / unreadable / readable, enum next to live `T`. Readable IMUs get Prev / Next / Identity / Wiki and four edge-down captures plus Solve (sensor reload). Save home records `accelMountMatrix`; follow does not apply it.
+- Open a maximized dashboard: Picture, Finger, Pen, Arrow, Tilt, Home / Follow. Cards show the live backend string (`KScreen` / `KWin`, `RandR` / `XInput CTM`, or `Mutter DisplayConfig` / `udev constant`). Tilt is `sysfs + udev + SensorProxy`: no sensor / unreadable / readable, enum next to live `T`. Readable IMUs get Prev / Next / Identity / Wiki and four edge-down captures plus Solve (sensor reload) over ten matrices. Save home records `accelMountMatrix`; follow does not apply it.
 - Apply Picture **None** / **Left** / **Inverted** / **Right**. KWin uses one-shot `kscreen-doctor` after `org.kde.KScreen` `/backend` `getConfig`. X11 uses one-shot `xrandr --rotate` after in-process RandR get. GNOME uses in-process `GetCurrentState` plus one-shot `gdctl` / `ApplyMonitorsConfig` (temporary for the 10s countdown; Keep may persist `~/.config/monitors.xml`). Builtin outputs are `eDP*`, `DSI*`, `LVDS*`. Mutter 90° is clockwise (`right` / `Rotated270`); KScreen `left` is Mutter 270.
 - Apply Finger / Pen **R=0 / 1 / 2 / 4 / 8** (`Primary`, `Portrait`, `Landscape`, `InvertedPortrait`, `InvertedLandscape`). KWin writes `orientationDBus`. X11 writes `CTM(T)∘CTM(R)` (or Wacom Rotation on xf86-input-wacom nodes). GNOME lists from udev name + VID:PID. GSettings tablet `left-handed` is 180° only and Mutter skips it on this built-in Wacom; touch has no rotation key. Clinic writes a udev `LIBINPUT_CALIBRATION_MATRIX`. Touch is constant (Mutter composes T). Pen follow composes `R(T)` from the home pair because Mutter does not rotate tablet-tools. `udevadm trigger` does not reopen Mutter’s evdev fds — apply is a HID unbind/bind (`~/.config/tiltback/rebind-hid.sh`). Identity is name + VID:PID, never `eventN` / xinput id. Denied: touchpads, Samsung cover `04e8:a00a`, Wacom `WCOM0028` Mouse, plus X11 `XTEST` / Virtual core / keyboards / `cros_ec`. Eraser nodes get the pen R.
-- Independent 10-second Keep / Revert per layer. Follow is held off for ~15s (`~/.cache/tiltback/clinic-hold` or `/tmp`) so a clinic write is not restamped away.
+- Independent 10-second Keep / Revert per layer. Follow is held off for ~15s (`~/.cache/tiltback/clinic-hold` or `/tmp`) during Picture / Finger / Pen so a clinic write is not restamped away. Tilt leave follow running.
 - **Save home** writes `home = (T, R_touch, R_pen)` to `~/.config/tiltback/home.json` (or `/tmp` if home is RO). Plasma also writes decimal `vendor/product` groups in `kcminputrc`. X11 and GNOME are home.json only (Mutter owns `monitors.xml` + GSettings).
 - **Install/start** drops a systemd `--user` `tiltback-follow.service`. On RO home it uses a runtime drop-in under `/run/user/…` and masks the old Python `tiltback-w620` unit.
 - Follow restamps residual only. KWin: `PropertiesChanged` + 0.4s tick. X11: RandR notify / `QScreen` and composed CTM. GNOME: `MonitorsChanged` + directory watch on `~/.config/monitors.xml`; never write T. Touch udev R is **constant** (Mutter already composes T onto touchscreens). Pen udev R is **composed with ΔT** (`R(T) = q(T_home) − q(T) + q(R_home)`) because Mutter does not rotate this integrated tablet-tool with the output (inverse ΔT so portrait left/right match the panel). Reloading `home.json` restamps the new R. The GUI process must not also construct `FollowEngine`. `--follow` uses `QGuiApplication` on X11; GNOME stays `QCoreApplication`.
@@ -598,6 +607,7 @@ TiltBack is a **KWin + X11 + Mutter clinic**. One C++/QML binary (`tiltback`) do
 | --- | --- | --- | --- | --- |
 | Galaxy Book W620 (pmOS Plasma 6.6 Wayland) | `eDP-1` 1280×1920 | `RIGHT_UP` (3) | `T=Rotated90`, `R_touch=8`, `R_pen=8` | Device-space 180° at every pose. KWin zeros `R` on every `T` change; follow restamps 8. Cover / mouse stay at 0. |
 | raytrektab RT08WT (pmOS Plasma Wayland) | `DSI-1` 800×1280 | `BOTTOM_UP` (1) | `T=Rotated180`, `R_touch=8`, `R_pen=8` | Wayland arrow **not** inverted. Goodix `0416:038f` is the real touch; Wacom `2D1F:011E` Stylus is the pen. A non-Stylus Wacom node at `R=0` can steal first-touch pick. |
+| raytrektab RT08WT (CachyOS Plasma, `alpha@10.0.0.109`) | `DSI-1` 800×1280 | `BOTTOM_UP` (1) | same home tuple | T5: `KIOX000A` poll-readable, buffer EPERM, four-hold identity `0/10`. See [case-rt08wt.md](case-rt08wt.md). |
 | Acer Chromebook Tab 10 (Debian 13 XFCE X11) | `DSI-1` 1536×2048 | unavailable (no sysfs DMI) | `T=Normal`, `R_touch=0`, `R_pen=0` | Default pose already correct. Follow writes `CTM(T)` on Elan and Wacom Rotation on `2D1F:0036` stylus/erasers after `xrandr --rotate`. |
 | Galaxy Book W620 (pmOS 26.06 GNOME / Mutter 50.2 Wayland) | `eDP-1` sysfs 1280×1920, logical 1920×1280 | `RIGHT_UP` (3) | `T=Rotated180`, `R_touch=8`, `R_pen=2` | Not the Plasma `Rotated90`+`R=8/8` seed. Touch follows T (constant udev R=8). The integrated Wacom tablet-tool does **not** — follow writes `R(T)` and HID-rebinds. |
 | Trogdor Tab 510 (pmOS Plasma Mobile, `user@10.0.0.117`) | `DSI-1` 1200×1920 | not the Picture clinic | T2 helper + path unit | T0–T4 Tilt: eight-matrix cycle, four-hold solve snaps to wiki `5/8`. |
@@ -671,13 +681,13 @@ Done when Display Configuration’s 15s revert (or a manual pose change) leaves 
 
 **Phase 8 — Second backend. X11 shipped; Mutter Picture + tablet `left-handed` shipped; Phosh not started.** `OrientationBackend` plus `KwinBackend`, `X11Backend`, and `GnomeBackend`. Same narrow interface: list outputs, get/set `T`, list absolute devices, get/set `R`, follow stamp, pose watch. Arrow apply is still later.
 
-**Skip or defer:** udev as the default *digitizer* residual, TiltBack-as-auto-rotate-daemon, fake cursors, GTK, PySide6, button/pressure editors, the cover touchpad, community profile service, a second Picture wizard. IMU **mount-matrix clinic** is no longer “skip”; T0–T4 are done (Trogdor is T2–T4), T5 is unstarted (see above).
+**Skip or defer:** udev as the default *digitizer* residual, TiltBack-as-auto-rotate-daemon, fake cursors, GTK, PySide6, button/pressure editors, the cover touchpad, community profile service, a second Picture wizard. IMU **mount-matrix clinic** is no longer “skip”; T0–T5 are done (Trogdor is T2–T4, RT08WT is T5).
 
 **Why that order still holds:** Phase 1 is useful alone and is how the RT08WT was met. Phases 2–3 force apply/revert before anything can double-transform anyone. Phase 4 is the Plasma MVP because without follow the clinic dies in Display Configuration. Phase 5 as a separate UX language did not pay off. Phase 6’s unproven layer (hardware cursor) did not appear on the Wayland sessions we have. C++ from Phase 0 so the W620-class CPU never runs a Python session helper again.
 
 ## Next steps
 
-**Current fork (Tilt).** T0–T4 are done. T2–T4 chassis is the Trogdor Tab 510 at `user@10.0.0.117`: eight-matrix cycle, four-hold solve via `tiltback-accel.path`. Next is T5 (dead-IIO honesty only). Do not start T5 as a matrix hunt.
+**Current fork (Tilt).** T0–T5 are done. T2–T4 chassis is the Trogdor Tab 510 (`user@10.0.0.117`). T5 chassis is the CachyOS RT08WT at `alpha@10.0.0.109`: poll-readable `KIOX000A`, dead buffer, ten-matrix solve, T2 helper in `tiltback 0.0.0-4`. Follow still does not write `T`.
 
 The Plasma clinic works on two pmOS tablets. The block below was the 2026-09 fork (packaging vs GNOME vs X11). (1) and (3) and Mutter from (2) have been executed. What remains from that list is Phosh and Phase 7 text export. It is **not** the Tilt roadmap.
 

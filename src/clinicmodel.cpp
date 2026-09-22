@@ -404,12 +404,15 @@ void ClinicModel::fillTiltCard()
         const int idx = TiltBack::mountMatrixIndex(
             !m_tiltLastApplied.isEmpty() ? m_tiltLastApplied : m_tilt.udevMatrix);
         if (idx >= 0)
-            d << QStringLiteral("%1/8  %2")
+            d << QStringLiteral("%1/%2  %3")
                      .arg(idx)
+                     .arg(TiltBack::mountMatrixCount())
                      .arg(TiltBack::mountMatrixAt(idx));
     }
     if (!m_tilt.proxyType.isEmpty())
         d << QStringLiteral("proxy %1").arg(m_tilt.proxyType);
+    if (!m_tilt.bufferNote.isEmpty())
+        d << m_tilt.bufferNote;
     const QString e = m_tilt.orientation.isEmpty() ? QStringLiteral("(none)")
                                                    : m_tilt.orientation;
     d << QStringLiteral("enum=%1  T=%2").arg(e, m_outputTransform);
@@ -432,7 +435,10 @@ void ClinicModel::fillTiltCard()
                                                        &residual, &serr,
                                                        m_tilt.udevMatrix);
             if (idx >= 0)
-                d << QStringLiteral("solve %1/8  %2").arg(idx).arg(solved);
+                d << QStringLiteral("solve %1/%2  %3")
+                         .arg(idx)
+                         .arg(TiltBack::mountMatrixCount())
+                         .arg(solved);
             else if (!serr.isEmpty())
                 d << serr;
         }
@@ -478,6 +484,8 @@ void ClinicModel::buildReport()
     lines << QStringLiteral("IIO_SENSOR_PROXY_TYPE: %1")
                  .arg(m_tilt.proxyType.isEmpty() ? QStringLiteral("(none)")
                                                 : m_tilt.proxyType);
+    if (!m_tilt.bufferNote.isEmpty())
+        lines << m_tilt.bufferNote;
     lines << QStringLiteral("HasAccelerometer: %1")
                  .arg(!m_tilt.proxyPresent
                           ? QStringLiteral("n/a")
@@ -1108,7 +1116,11 @@ void ClinicModel::installFollow()
 
 void ClinicModel::syncClinicHold()
 {
-    if (anyPending())
+    // Picture / Finger / Pen: mute follow so a clinic R or T write is not
+    // restamped away. Tilt must not: sensor reload often changes T, KWin
+    // zeros Orientation, and follow has to write R back or Keep/Revert
+    // cannot be tapped.
+    if (m_picturePending || m_fingerPending || m_penPending)
         TiltBack::writeClinicHold();
     else
         TiltBack::clearClinicHold();

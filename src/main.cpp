@@ -93,7 +93,7 @@ int main(int argc, char *argv[])
             std::fprintf(stderr, "%s\n", qPrintable(err));
             return 2;
         }
-        std::fprintf(stdout, "tilt-solve self-test ok (wiki 5/8)\n");
+        std::fprintf(stdout, "tilt-solve self-test ok (wiki 5/10, 180-X 8/10)\n");
         return 0;
     }
 

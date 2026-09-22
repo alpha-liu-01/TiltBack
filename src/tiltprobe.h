@@ -27,6 +27,7 @@ struct TiltFact {
     bool hasAccelerometer = false;
     QString orientation;
     QString reason;
+    QString bufferNote;
 };
 
 class TiltProbe
