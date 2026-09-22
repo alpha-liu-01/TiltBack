@@ -81,6 +81,20 @@ That is the standard proxy → KWin map. Portraits and both landscapes already m
 
 The T1 Tilt card should show **readable**, identity `cros-ec-accel` / `platform:cros-ec-accel`, empty kernel matrix, wiki `udev ACCEL_MOUNT_MATRIX`, and live `enum=` next to live `T=` (not the persisted json transform).
 
+T2 apply: `61-tiltback-accel.rules` is one line matching `name=cros-ec-accel` / `platform:cros-ec-accel` (not `KERNEL=="iio*"`). Identity (`1, 0, 0; 0, 1, 0; 0, 0, 1`) is the test that changes the landscape enum; Revert deletes our file and the wiki leak restores the previous enum. Leave `/etc/udev/rules.d/61-cros-ec-accel.rules` in place.
+
+T2 live apply/revert (2026-09-22). One polkit auth installed `apply-accel.sh` and enabled `tiltback-accel.path`. After that the session only writes `/run/tiltback/accel-request`.
+
+Identity wrote exactly:
+
+```text
+SUBSYSTEM=="iio", ACTION!="remove", ATTR{name}=="cros-ec-accel", ATTRS{modalias}=="platform:cros-ec-accel", ENV{ACCEL_MOUNT_MATRIX}="1, 0, 0; 0, 1, 0; 0, 0, 1"
+```
+
+Live `udevadm info` on `iio:device2` flipped wiki → identity → wiki. `udevadm test` on `iio:device0` and `event0` kept the wiki leak value (not identity). Revert deleted our file. Wiki hash stayed `d7260870ffff7d9540c49b78aa13b73e66cf245906dad1485fb482e7005f72f0`. `name=iio:device2` is rejected in dest-test.
+
+Enum stayed `undefined`: raw was Z-dominant (`~0, ~-120, ~16700`) the whole time. That is the flat rest the plan warned about — a landscape hold is required to see `left-up` ↔ `right-up`. After proxy restart the sticky pre-apply `left-up` is gone until the next non-flat reading.
+
 ## What this proves about Tilt
 
 1. **T2 chassis is this tablet**, not the W620 (no IIO) and not the CachyOS RT08WT (IIO unreadable).

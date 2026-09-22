@@ -52,8 +52,11 @@ package_tiltback-gnome() {
 	DESTDIR="$pkgdir" cmake --install build
 	rm -rf "$pkgdir/usr/bin" "$pkgdir/usr/share"
 	rm -f "$pkgdir/usr/libexec/tiltback/install-greeter.sh"
+	rm -f "$pkgdir/usr/libexec/tiltback/apply-accel.sh"
 	rm -f "$pkgdir/usr/lib/systemd/system/tiltback-greeter.service"
 	rm -f "$pkgdir/usr/lib/systemd/system/tiltback-greeter.path"
+	rm -f "$pkgdir/usr/lib/systemd/system/tiltback-accel.service"
+	rm -f "$pkgdir/usr/lib/systemd/system/tiltback-accel.path"
 	rm -f "$pkgdir/usr/lib/systemd/user/tiltback-greeter-follow.service"
 	rm -rf "$pkgdir/usr/lib/systemd/user/plasma-login-wayland.target.wants"
 	rm -rf "$pkgdir/usr/lib/systemd/user/plasma-login-wayland.target.d"

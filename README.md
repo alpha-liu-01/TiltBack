@@ -14,13 +14,13 @@ One C++ / Qt Quick binary (`tiltback`) provides the dashboard, session apply, pe
 
 - **Picture (T)** — rotate the builtin panel: None, Left, Inverted, Right.
 - **Finger / Pen (R)** — set a residual on the named digitizers (`R=0 / 1 / 2 / 4 / 8`). Devices are identified by name and USB/I2C VID:PID, never by `eventN`.
-- **Tilt** — diagnose-only. Classifies the accelerometer as no sensor, unreadable, or readable (IIO name + mount matrices + SensorProxy enum next to live `T`). No udev write in this release.
-- **Keep / Revert** — each apply has an independent 10-second countdown so a bad guess can be undone.
+- **Tilt** — classifies the accelerometer as no sensor, unreadable, or readable. On a readable IMU, Identity / Wiki writes `ACCEL_MOUNT_MATRIX` via the packaged `tiltback-accel.path` helper (not `LIBINPUT_CALIBRATION_MATRIX`). Follow never writes `T`.
+- **Keep / Revert** — each apply has an independent 10-second countdown so a bad guess can be undone. Tilt’s banner is a sensor reload.
 - **Save home** — stores `(T, R_touch, R_pen)` in `~/.config/tiltback/home.json` (Plasma also writes `kcminputrc`).
 - **Follow** — a user systemd unit restamps residuals when the compositor changes T. Follow never writes the picture transform.
 - **Report** — `--report` prints a five-layer dump for bug reports.
 
-Arrow and Tilt are diagnose-only in this release. Phosh / phoc is not a backend.
+Arrow is diagnose-only in this release. Phosh / phoc is not a backend.
 
 ## Supported sessions
 

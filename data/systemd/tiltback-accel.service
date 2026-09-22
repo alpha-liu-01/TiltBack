@@ -1,0 +1,6 @@
+[Unit]
+Description=TiltBack accelerometer mount-matrix apply
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/tiltback/apply-accel.sh

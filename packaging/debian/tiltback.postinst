@@ -22,8 +22,10 @@ if [ "$1" = configure ]; then
 		systemctl daemon-reload >/dev/null 2>&1 || true
 		deb-systemd-helper enable tiltback-greeter.service >/dev/null || true
 		deb-systemd-helper enable tiltback-greeter.path >/dev/null || true
+		deb-systemd-helper enable tiltback-accel.path >/dev/null || true
 		deb-systemd-invoke start tiltback-greeter.path >/dev/null || true
 		deb-systemd-invoke start tiltback-greeter.service >/dev/null || true
+		deb-systemd-invoke start tiltback-accel.path >/dev/null || true
 	fi
 fi
 exit 0

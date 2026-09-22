@@ -1,0 +1,10 @@
+[Unit]
+Description=TiltBack accelerometer mount-matrix when clinic requests apply
+
+[Path]
+PathModified=/run/tiltback/accel-request
+PathChanged=/run/tiltback/accel-request
+Unit=tiltback-accel.service
+
+[Install]
+WantedBy=multi-user.target

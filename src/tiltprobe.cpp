@@ -1,10 +1,13 @@
 #include "tiltprobe.h"
 
+#include <QDateTime>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
 #include <QMap>
 #include <QProcess>
+#include <QThread>
+#include <QUuid>
 #include <QVector>
 
 #include <algorithm>
@@ -237,6 +240,7 @@ TiltFact TiltProbe::probe()
                          QStringLiteral("net.hadess.SensorProxy"), sys);
     f.proxyPresent = iface.isValid();
     if (f.proxyPresent) {
+        iface.call(QStringLiteral("ClaimAccelerometer"));
         const QVariant has = iface.property("HasAccelerometer");
         f.hasAccelerometer = has.isValid() && has.toBool();
         f.orientation = iface.property("AccelerometerOrientation").toString();
@@ -244,6 +248,127 @@ TiltFact TiltProbe::probe()
 
     classify(&f);
     return f;
+}
+
+QString identityMountMatrix()
+{
+    return QStringLiteral("1, 0, 0; 0, 1, 0; 0, 0, 1");
+}
+
+QString wikiMountMatrix()
+{
+    return QStringLiteral("0, 1, 0; -1, 0, 0; 0, 0, -1");
+}
+
+QString normalizeMountMatrix(const QString &kind)
+{
+    const QString k = kind.trimmed().toLower();
+    if (k == QLatin1String("identity") || k == QLatin1String("id"))
+        return identityMountMatrix();
+    if (k == QLatin1String("wiki") || k == QLatin1String("trogdor"))
+        return wikiMountMatrix();
+    return kind.trimmed();
+}
+
+bool kernelMatrixBlocksApply(const QString &kernelMatrix)
+{
+    const QString raw = kernelMatrix.trimmed();
+    if (raw.isEmpty())
+        return false;
+    QString n = raw;
+    n.remove(QLatin1Char(' '));
+    return n != QLatin1String("1,0,0;0,1,0;0,0,1");
+}
+
+bool accelHelperInstalled()
+{
+    return QFile::exists(QStringLiteral("/usr/lib/systemd/system/tiltback-accel.path"))
+        || QFile::exists(QStringLiteral("/lib/systemd/system/tiltback-accel.path"))
+        || QFile::exists(QStringLiteral("/etc/systemd/system/tiltback-accel.path"));
+}
+
+QString accelHelperHint()
+{
+    return QStringLiteral(
+        "sudo install -D -m 0755 /usr/libexec/tiltback/apply-accel.sh "
+        "/usr/libexec/tiltback/apply-accel.sh\n"
+        "sudo cp /usr/lib/systemd/system/tiltback-accel.service "
+        "/usr/lib/systemd/system/tiltback-accel.path /etc/systemd/system/\n"
+        "sudo systemctl enable --now tiltback-accel.path\n"
+        "Or one-shot after writing /run/tiltback/accel-request:\n"
+        "sudo /usr/libexec/tiltback/apply-accel.sh");
+}
+
+QString newAccelNonce()
+{
+    return QUuid::createUuid().toString(QUuid::WithoutBraces);
+}
+
+bool writeAccelRequest(const QString &body, QString *error)
+{
+    QDir().mkpath(QStringLiteral("/run/tiltback"));
+    const QString path = QStringLiteral("/run/tiltback/accel-request");
+    QFile f(path);
+    if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) {
+        if (error)
+            *error = QStringLiteral("cannot write %1").arg(path);
+        return false;
+    }
+    f.write(body.toUtf8());
+    f.close();
+    return true;
+}
+
+bool requestAccelApply(const QString &name, const QString &modalias,
+                       const QString &matrix, QString *nonce, QString *error)
+{
+    const QString n = newAccelNonce();
+    if (nonce)
+        *nonce = n;
+    QString body = QStringLiteral("op=apply\nnonce=%1\nmatrix=%2\n").arg(n, matrix);
+    if (!name.isEmpty())
+        body += QStringLiteral("name=%1\n").arg(name);
+    if (!modalias.isEmpty())
+        body += QStringLiteral("modalias=%1\n").arg(modalias);
+    return writeAccelRequest(body, error);
+}
+
+bool requestAccelRemove(QString *nonce, QString *error)
+{
+    const QString n = newAccelNonce();
+    if (nonce)
+        *nonce = n;
+    return writeAccelRequest(QStringLiteral("op=remove\nnonce=%1\n").arg(n), error);
+}
+
+bool waitAccelStamp(const QString &nonce, QString *error)
+{
+    const QString path = QStringLiteral("/run/tiltback/last-accel-done");
+    for (int i = 0; i < 40; ++i) {
+        QFile f(path);
+        if (f.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            const QString text = QString::fromUtf8(f.readAll());
+            if (text.contains(QStringLiteral("nonce=%1").arg(nonce))) {
+                if (text.contains(QLatin1String("error="))) {
+                    if (error) {
+                        for (const QString &line : text.split(QLatin1Char('\n'))) {
+                            if (line.startsWith(QLatin1String("error=")))
+                                *error = line.mid(6);
+                        }
+                    }
+                    return false;
+                }
+                return true;
+            }
+        }
+        QThread::msleep(250);
+    }
+    if (error) {
+        *error = accelHelperInstalled()
+            ? QStringLiteral("accel helper timed out")
+            : accelHelperHint();
+    }
+    return false;
 }
 
 } // namespace TiltBack

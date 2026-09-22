@@ -143,6 +143,8 @@ void ClinicModel::refresh()
     m_pictureError.clear();
     m_fingerError.clear();
     m_penError.clear();
+    if (!m_tiltPending)
+        m_tiltError.clear();
     probeDmi();
     probeDrm();
     probeOutputTransform();
@@ -369,6 +371,9 @@ void ClinicModel::fillTiltCard()
 {
     m_tiltSource = QStringLiteral("sysfs + udev + SensorProxy");
     m_tiltBackend = m_tiltSource;
+    m_tiltCanApply = m_tilt.honesty == TiltBack::TiltHonesty::Readable
+        && !TiltBack::kernelMatrixBlocksApply(m_tilt.kernelMatrix)
+        && (!m_tilt.name.isEmpty() || !m_tilt.modalias.isEmpty());
     m_tiltValue = m_tilt.honestyText;
     if (m_tilt.honesty == TiltBack::TiltHonesty::NoSensor) {
         m_tiltDetail = m_tilt.proxyPresent
@@ -400,6 +405,13 @@ void ClinicModel::fillTiltCard()
     d << QStringLiteral("enum=%1  T=%2").arg(e, m_outputTransform);
     if (!m_tilt.reason.isEmpty() && m_tilt.honesty != TiltBack::TiltHonesty::Readable)
         d << m_tilt.reason;
+    if (TiltBack::kernelMatrixBlocksApply(m_tilt.kernelMatrix))
+        d << QStringLiteral("apply refused: kernel matrix is not identity");
+    if (m_tilt.honesty == TiltBack::TiltHonesty::Readable
+        && !TiltBack::accelHelperInstalled())
+        d << TiltBack::accelHelperHint();
+    if (!m_tiltError.isEmpty())
+        d << m_tiltError;
     m_tiltDetail = d.join(QLatin1Char('\n'));
 }
 
@@ -544,7 +556,7 @@ void ClinicModel::revertPicture()
 
 bool ClinicModel::anyPending() const
 {
-    return m_picturePending || m_fingerPending || m_penPending;
+    return m_picturePending || m_fingerPending || m_penPending || m_tiltPending;
 }
 
 void ClinicModel::ensureTimer()
@@ -607,6 +619,101 @@ void ClinicModel::stopPenCountdown()
     syncClinicHold();
 }
 
+void ClinicModel::startTiltCountdown()
+{
+    m_tiltPending = true;
+    m_tiltSeconds = 10;
+    ensureTimer();
+    syncClinicHold();
+}
+
+void ClinicModel::stopTiltCountdown()
+{
+    m_tiltPending = false;
+    m_tiltSeconds = 0;
+    m_tiltPendingLabel.clear();
+    if (!anyPending())
+        m_revertTimer->stop();
+    syncClinicHold();
+}
+
+bool ClinicModel::requestTiltOp(bool remove, const QString &matrix, QString *error)
+{
+    QString nonce;
+    const bool ok = remove
+        ? TiltBack::requestAccelRemove(&nonce, error)
+        : TiltBack::requestAccelApply(m_tilt.name, m_tilt.modalias, matrix, &nonce, error);
+    if (!ok)
+        return false;
+    if (TiltBack::waitAccelStamp(nonce, error))
+        return true;
+    if (!TiltBack::accelHelperInstalled()) {
+        if (error && error->isEmpty())
+            *error = TiltBack::accelHelperHint();
+        return false;
+    }
+    return false;
+}
+
+void ClinicModel::applyTilt(const QString &kind)
+{
+    const QString matrix = TiltBack::normalizeMountMatrix(kind);
+    m_tilt = TiltBack::TiltProbe::probe();
+    if (m_tilt.honesty != TiltBack::TiltHonesty::Readable) {
+        m_tiltError = QStringLiteral("Tilt apply needs a readable IMU");
+        fillTiltCard();
+        emit changed();
+        return;
+    }
+    if (TiltBack::kernelMatrixBlocksApply(m_tilt.kernelMatrix)) {
+        m_tiltError = QStringLiteral("kernel matrix is not identity; refuse compose");
+        fillTiltCard();
+        emit changed();
+        return;
+    }
+    if (m_tilt.name.isEmpty() && m_tilt.modalias.isEmpty()) {
+        m_tiltError = QStringLiteral("no IIO name or modalias");
+        fillTiltCard();
+        emit changed();
+        return;
+    }
+    QString err;
+    if (!requestTiltOp(false, matrix, &err)) {
+        m_tiltError = err;
+        fillTiltCard();
+        emit changed();
+        return;
+    }
+    m_tiltError.clear();
+    m_tiltPendingLabel = QStringLiteral("sensor reload  %1").arg(matrix);
+    startTiltCountdown();
+    probeOutputTransform();
+    probeTilt();
+    buildReport();
+    emit changed();
+}
+
+void ClinicModel::keepTilt()
+{
+    if (!m_tiltPending)
+        return;
+    stopTiltCountdown();
+    refresh();
+}
+
+void ClinicModel::revertTilt()
+{
+    if (!m_tiltPending && !QFile::exists(QStringLiteral("/etc/udev/rules.d/61-tiltback-accel.rules"))) {
+        refresh();
+        return;
+    }
+    stopTiltCountdown();
+    QString err;
+    if (!requestTiltOp(true, {}, &err))
+        m_tiltError = err;
+    refresh();
+}
+
 void ClinicModel::onRevertTick()
 {
     if (m_picturePending) {
@@ -627,6 +734,11 @@ void ClinicModel::onRevertTick()
             revertPen();
         else
             warnIfFollowFight(DigitizerClass::Pen);
+    }
+    if (m_tiltPending) {
+        m_tiltSeconds--;
+        if (m_tiltSeconds <= 0)
+            revertTilt();
     }
     if (!anyPending())
         m_revertTimer->stop();

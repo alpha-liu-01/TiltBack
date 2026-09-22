@@ -34,4 +34,15 @@ public:
     static TiltFact probe();
 };
 
+QString identityMountMatrix();
+QString wikiMountMatrix();
+QString normalizeMountMatrix(const QString &kind);
+bool kernelMatrixBlocksApply(const QString &kernelMatrix);
+bool accelHelperInstalled();
+QString accelHelperHint();
+bool requestAccelApply(const QString &name, const QString &modalias,
+                       const QString &matrix, QString *nonce, QString *error);
+bool requestAccelRemove(QString *nonce, QString *error);
+bool waitAccelStamp(const QString &nonce, QString *error);
+
 } // namespace TiltBack

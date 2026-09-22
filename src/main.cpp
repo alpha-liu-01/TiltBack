@@ -134,6 +134,34 @@ int main(int argc, char *argv[])
         return rc;
     }
 
+    const int applyTiltAt = args.indexOf(QStringLiteral("--apply-tilt"));
+    if (applyTiltAt >= 0) {
+        const QString kind = applyTiltAt + 1 < args.size() ? args.at(applyTiltAt + 1)
+                                                           : QStringLiteral("identity");
+        ClinicModel clinic;
+        clinic.applyTilt(kind);
+        if (!clinic.pendingTiltRevert()) {
+            std::fprintf(stderr, "%s\n%s\n", qPrintable(clinic.tiltDetail()),
+                         qPrintable(clinic.reportText()));
+            return 2;
+        }
+        std::fprintf(stdout, "applied tilt %s — sensor reload, auto-revert in 10s\n",
+                     qPrintable(kind));
+        QTimer::singleShot(11000, &app, &QCoreApplication::quit);
+        const int rc = app.exec();
+        clinic.refresh();
+        std::fprintf(stdout, "%s\n%s\n", qPrintable(clinic.tiltValue()),
+                     qPrintable(clinic.reportText()));
+        return rc;
+    }
+    if (args.contains(QStringLiteral("--revert-tilt"))) {
+        ClinicModel clinic;
+        clinic.revertTilt();
+        std::fprintf(stdout, "%s\n%s\n", qPrintable(clinic.tiltValue()),
+                     qPrintable(clinic.reportText()));
+        return 0;
+    }
+
     if (args.contains(QStringLiteral("--report"))) {
         ClinicModel clinic;
         std::fprintf(stdout, "%s\n", qPrintable(clinic.reportText()));

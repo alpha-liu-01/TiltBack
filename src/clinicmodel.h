@@ -40,6 +40,7 @@ class ClinicModel : public QObject
     Q_PROPERTY(QString tiltDetail READ tiltDetail NOTIFY changed)
     Q_PROPERTY(QString tiltSource READ tiltSource NOTIFY changed)
     Q_PROPERTY(QString tiltBackend READ tiltBackend NOTIFY changed)
+    Q_PROPERTY(bool tiltCanApply READ tiltCanApply NOTIFY changed)
 
     Q_PROPERTY(QString reportText READ reportText NOTIFY changed)
     Q_PROPERTY(QString homeLine READ homeLine NOTIFY changed)
@@ -58,6 +59,10 @@ class ClinicModel : public QObject
     Q_PROPERTY(bool pendingPenRevert READ pendingPenRevert NOTIFY changed)
     Q_PROPERTY(int penSecondsLeft READ penSecondsLeft NOTIFY changed)
     Q_PROPERTY(QString pendingPenTransform READ pendingPenTransform NOTIFY changed)
+
+    Q_PROPERTY(bool pendingTiltRevert READ pendingTiltRevert NOTIFY changed)
+    Q_PROPERTY(int tiltSecondsLeft READ tiltSecondsLeft NOTIFY changed)
+    Q_PROPERTY(QString pendingTiltTransform READ pendingTiltTransform NOTIFY changed)
 
 public:
     explicit ClinicModel(QObject *parent = nullptr);
@@ -87,6 +92,7 @@ public:
     QString tiltDetail() const { return m_tiltDetail; }
     QString tiltSource() const { return m_tiltSource; }
     QString tiltBackend() const { return m_tiltBackend; }
+    bool tiltCanApply() const { return m_tiltCanApply; }
 
     QString reportText() const { return m_reportText; }
     QString homeLine() const { return m_homeLine; }
@@ -106,6 +112,10 @@ public:
     int penSecondsLeft() const { return m_penSeconds; }
     QString pendingPenTransform() const { return m_penPendingLabel; }
 
+    bool pendingTiltRevert() const { return m_tiltPending; }
+    int tiltSecondsLeft() const { return m_tiltSeconds; }
+    QString pendingTiltTransform() const { return m_tiltPendingLabel; }
+
     Q_INVOKABLE void refresh();
     Q_INVOKABLE void copyReport();
     Q_INVOKABLE void applyPicture(const QString &kscreen);
@@ -117,6 +127,9 @@ public:
     Q_INVOKABLE void applyPen(int r);
     Q_INVOKABLE void keepPen();
     Q_INVOKABLE void revertPen();
+    Q_INVOKABLE void applyTilt(const QString &kind);
+    Q_INVOKABLE void keepTilt();
+    Q_INVOKABLE void revertTilt();
     Q_INVOKABLE void saveHome();
     Q_INVOKABLE void installFollow();
 
@@ -149,6 +162,9 @@ private:
     void stopFingerCountdown();
     void startPenCountdown();
     void stopPenCountdown();
+    void startTiltCountdown();
+    void stopTiltCountdown();
+    bool requestTiltOp(bool remove, const QString &matrix, QString *error);
     void onRevertTick();
     bool resolveDigitizer(DigitizerClass kind, Digitizer *out);
     void applyDigitizer(DigitizerClass kind, int r);
@@ -197,7 +213,9 @@ private:
     QString m_tiltDetail;
     QString m_tiltSource = QStringLiteral("sysfs + udev + SensorProxy");
     QString m_tiltBackend = QStringLiteral("sysfs + udev + SensorProxy");
+    bool m_tiltCanApply = false;
     TiltBack::TiltFact m_tilt;
+    QString m_tiltError;
 
     QString m_reportText;
     QString m_homeLine;
@@ -225,4 +243,8 @@ private:
     QString m_penPendingLabel;
     int m_penRevertR = 0;
     int m_penAppliedR = 0;
+
+    bool m_tiltPending = false;
+    int m_tiltSeconds = 0;
+    QString m_tiltPendingLabel;
 };

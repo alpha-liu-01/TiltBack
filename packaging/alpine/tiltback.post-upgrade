@@ -17,7 +17,7 @@ done
 if [ -d /run/systemd/system ]; then
 	systemd-tmpfiles --create /usr/lib/tmpfiles.d/tiltback.conf 2>/dev/null || true
 	systemctl daemon-reload 2>/dev/null || true
-	systemctl preset tiltback-greeter.service tiltback-greeter.path 2>/dev/null || true
-	systemctl enable --now tiltback-greeter.service tiltback-greeter.path 2>/dev/null || true
+	systemctl preset tiltback-greeter.service tiltback-greeter.path tiltback-accel.path 2>/dev/null || true
+	systemctl enable --now tiltback-greeter.service tiltback-greeter.path tiltback-accel.path 2>/dev/null || true
 fi
 exit 0

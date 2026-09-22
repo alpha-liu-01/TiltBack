@@ -25,6 +25,13 @@ _enable_greeter() {
 	fi
 }
 
+_enable_accel() {
+	if [ -f /usr/lib/systemd/system/tiltback-accel.path ] && [ -d /run/systemd/system ]; then
+		systemctl daemon-reload 2>/dev/null || true
+		systemctl enable --now tiltback-accel.path 2>/dev/null || true
+	fi
+}
+
 _enable_rebind() {
 	# Only when tiltback-gnome dropped the path unit.
 	if [ -f /usr/lib/systemd/system/tiltback-rebind.path ] && [ -d /run/systemd/system ]; then
@@ -36,12 +43,14 @@ _enable_rebind() {
 post_install() {
 	_leftover_clinic
 	_enable_greeter
+	_enable_accel
 	_enable_rebind
 }
 
 post_upgrade() {
 	_leftover_clinic
 	_enable_greeter
+	_enable_accel
 	_enable_rebind
 }
 
@@ -49,6 +58,9 @@ post_remove() {
 	if [ -d /run/systemd/system ]; then
 		if [ ! -f /usr/lib/systemd/system/tiltback-greeter.service ]; then
 			systemctl disable --now tiltback-greeter.service tiltback-greeter.path 2>/dev/null || true
+		fi
+		if [ ! -f /usr/lib/systemd/system/tiltback-accel.path ]; then
+			systemctl disable --now tiltback-accel.path 2>/dev/null || true
 		fi
 		if [ ! -f /usr/lib/systemd/system/tiltback-rebind.path ]; then
 			systemctl disable --now tiltback-rebind.path 2>/dev/null || true

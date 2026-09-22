@@ -93,11 +93,16 @@ install(PROGRAMS data/tiltback-rebind-hid.sh
 install(PROGRAMS data/tiltback-install-greeter.sh
         DESTINATION ${CMAKE_INSTALL_LIBEXECDIR}/tiltback
         RENAME install-greeter.sh)
+install(PROGRAMS data/tiltback-apply-accel.sh
+        DESTINATION ${CMAKE_INSTALL_LIBEXECDIR}/tiltback
+        RENAME apply-accel.sh)
 install(FILES
             data/systemd/tiltback-rebind.service
             data/systemd/tiltback-rebind.path
             data/systemd/tiltback-greeter.service
             data/systemd/tiltback-greeter.path
+            data/systemd/tiltback-accel.service
+            data/systemd/tiltback-accel.path
         DESTINATION lib/systemd/system)
 install(FILES
             data/systemd/80-tiltback.preset

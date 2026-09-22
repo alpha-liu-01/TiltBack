@@ -310,6 +310,27 @@ ApplicationWindow {
                 detail: clinic.tiltDetail
                 how: clinic.tiltSource
                 backend: clinic.tiltBackend
+
+                Row {
+                    visible: clinic.tiltCanApply
+                    spacing: 12
+                    width: parent.width
+
+                    Button {
+                        width: (parent.width - parent.spacing) / 2
+                        height: Math.max(64, Math.round(root.height * 0.08))
+                        text: qsTr("Identity")
+                        font.pixelSize: Math.max(20, Math.round(root.width * 0.024))
+                        onClicked: clinic.applyTilt("identity")
+                    }
+                    Button {
+                        width: (parent.width - parent.spacing) / 2
+                        height: Math.max(64, Math.round(root.height * 0.08))
+                        text: qsTr("Wiki")
+                        font.pixelSize: Math.max(20, Math.round(root.width * 0.024))
+                        onClicked: clinic.applyTilt("wiki")
+                    }
+                }
             }
             LayerCard {
                 title: qsTr("Home / Follow")
@@ -362,7 +383,7 @@ ApplicationWindow {
     }
 
     Rectangle {
-        visible: clinic.pendingPictureRevert || clinic.pendingFingerRevert || clinic.pendingPenRevert
+        visible: clinic.pendingPictureRevert || clinic.pendingFingerRevert || clinic.pendingPenRevert || clinic.pendingTiltRevert
         z: 10
         anchors.fill: parent
         anchors.margins: root.cornerSize + 8
@@ -405,6 +426,14 @@ ApplicationWindow {
                     detail: clinic.pendingPenTransform
                     onKeepClicked: clinic.keepPen()
                     onRevertClicked: clinic.revertPen()
+                }
+                RevertBanner {
+                    visible: clinic.pendingTiltRevert
+                    question: qsTr("Keep this sensor reload?")
+                    seconds: clinic.tiltSecondsLeft
+                    detail: clinic.pendingTiltTransform
+                    onKeepClicked: clinic.keepTilt()
+                    onRevertClicked: clinic.revertTilt()
                 }
             }
         }

@@ -72,15 +72,15 @@ for u in /home/*/.config/systemd/user/tiltback-follow.service; do
 done
 if [ -d /run/systemd/system ]; then
 	systemd-tmpfiles --create %{_prefix}/lib/tmpfiles.d/tiltback.conf >/dev/null 2>&1 || :
-	%systemd_post tiltback-greeter.service tiltback-greeter.path
-	systemctl enable --now tiltback-greeter.service tiltback-greeter.path >/dev/null 2>&1 || :
+	%systemd_post tiltback-greeter.service tiltback-greeter.path tiltback-accel.path
+	systemctl enable --now tiltback-greeter.service tiltback-greeter.path tiltback-accel.path >/dev/null 2>&1 || :
 fi
 
 %preun
-%systemd_preun tiltback-greeter.service tiltback-greeter.path
+%systemd_preun tiltback-greeter.service tiltback-greeter.path tiltback-accel.path
 
 %postun
-%systemd_postun tiltback-greeter.service tiltback-greeter.path
+%systemd_postun tiltback-greeter.service tiltback-greeter.path tiltback-accel.path
 
 %post gnome
 if [ -d /run/systemd/system ]; then
@@ -101,8 +101,11 @@ fi
 %{_datadir}/applications/org.tiltback.TiltBack.desktop
 %{_datadir}/icons/hicolor/*/apps/org.tiltback.TiltBack.png
 %{_libexecdir}/tiltback/install-greeter.sh
+%{_libexecdir}/tiltback/apply-accel.sh
 %{_unitdir}/tiltback-greeter.service
 %{_unitdir}/tiltback-greeter.path
+%{_unitdir}/tiltback-accel.service
+%{_unitdir}/tiltback-accel.path
 %{_userunitdir}/tiltback-greeter-follow.service
 %{_userunitdir}/plasma-login-wayland.target.d/tiltback-greeter-follow.conf
 %{_userunitdir}/plasma-login-wayland.target.wants/tiltback-greeter-follow.service

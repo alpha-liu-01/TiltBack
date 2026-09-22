@@ -1,7 +1,7 @@
 # Maintainer: alpha-liu-01 <116528196+alpha-liu-01@users.noreply.github.com>
 pkgname=tiltback
 pkgver=0.0.0
-pkgrel=7
+pkgrel=8
 pkgdesc="Tablet orientation clinic"
 url="https://github.com/alpha-liu-01/TiltBack"
 arch="all"

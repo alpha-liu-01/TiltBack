@@ -2,8 +2,11 @@ usr/bin/tiltback
 usr/share/applications/org.tiltback.TiltBack.desktop
 usr/share/icons/hicolor/
 usr/libexec/tiltback/install-greeter.sh
+usr/libexec/tiltback/apply-accel.sh
 usr/lib/systemd/system/tiltback-greeter.service
 usr/lib/systemd/system/tiltback-greeter.path
+usr/lib/systemd/system/tiltback-accel.service
+usr/lib/systemd/system/tiltback-accel.path
 usr/lib/systemd/user/tiltback-greeter-follow.service
 usr/lib/systemd/user/plasma-login-wayland.target.d/
 usr/lib/systemd/user/plasma-login-wayland.target.wants/

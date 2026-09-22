@@ -2,3 +2,4 @@
 # post-install enable is undone by postmarketos-base-systemd's preset trigger.
 enable tiltback-greeter.service
 enable tiltback-greeter.path
+enable tiltback-accel.path

@@ -95,10 +95,10 @@ On GNOME that local desktop will steal the app menu from a later `/usr` apk. Pre
 
 | Package | Contents | Runtime |
 | --- | --- | --- |
-| `tiltback` | `/usr/bin/tiltback`, desktop + icons, `/usr/libexec/tiltback/install-greeter.sh`, `tiltback-greeter.service` / `.path`, `tiltback-greeter-follow.service` plus `plasma-login-wayland.target.d` drop-in, `80-tiltback.preset`, tmpfiles.d | `qt6-qtbase` `qt6-qtdeclarative` `qt6-qtwayland` |
+| `tiltback` | `/usr/bin/tiltback`, desktop + icons, `/usr/libexec/tiltback/install-greeter.sh`, `/usr/libexec/tiltback/apply-accel.sh`, `tiltback-greeter.service` / `.path`, `tiltback-accel.path` / `.service`, `tiltback-greeter-follow.service` plus `plasma-login-wayland.target.d` drop-in, `80-tiltback.preset`, tmpfiles.d | `qt6-qtbase` `qt6-qtdeclarative` `qt6-qtwayland` |
 | `tiltback-gnome` | `/usr/libexec/tiltback/rebind-hid.sh`, `tiltback-rebind.path` / `.service`, `81-tiltback-gnome.preset` | pulled by `install_if` |
 
-The main package post-install creates `/run/tiltback` (tmpfiles `1777`) and enables `tiltback-greeter.service` / `.path` (`80-tiltback.preset`) so the login OSK gets the last clinic T/R before the display manager starts. See [greeter-and-boot.md](greeter-and-boot.md). `tiltback --install-greeter` and Save home touch `/run/tiltback/greeter-request`.
+The main package post-install creates `/run/tiltback` (tmpfiles `1777`) and enables `tiltback-greeter.service` / `.path` and `tiltback-accel.path` (`80-tiltback.preset`). Greeter: the login OSK gets the last clinic T/R before the display manager starts. See [greeter-and-boot.md](greeter-and-boot.md). `tiltback --install-greeter` and Save home touch `/run/tiltback/greeter-request`. Tilt apply: the GUI or `tiltback --apply-tilt identity|wiki` writes `/run/tiltback/accel-request`; the path unit runs `apply-accel.sh` as root (one well-formed `61-tiltback-accel.rules`, udev reload, `iio-sensor-proxy` restart). `--revert-tilt` deletes that file only. Do not put a home path in the packaged accel unit.
 
 `tiltback-gnome` uses Alpine `install_if="tiltback gnome-shell systemd"`. `apk add tiltback` on a GNOME + systemd machine (postmarketOS GNOME) pulls the helper. Post-install enables `tiltback-rebind.path` and ships `81-tiltback-gnome.preset` (`enable tiltback-rebind.path`) so `postmarketos-base-systemd`’s `disable *` preset does not undo it. That is the packaged form of:
 
