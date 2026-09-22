@@ -23,6 +23,8 @@ set(tiltback_src
     src/gnomebackend.cpp
     src/followengine.h
     src/followengine.cpp
+    src/tiltprobe.h
+    src/tiltprobe.cpp
 )
 if(X11_FOUND)
     list(APPEND tiltback_src src/x11backend.h src/x11backend.cpp)

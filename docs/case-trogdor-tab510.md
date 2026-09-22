@@ -79,6 +79,8 @@ That is the standard proxy → KWin map. Portraits and both landscapes already m
 - Do not use `LIBINPUT_CALIBRATION_MATRIX` for gravity.
 - Follow still does not write `T`.
 
+The T1 Tilt card should show **readable**, identity `cros-ec-accel` / `platform:cros-ec-accel`, empty kernel matrix, wiki `udev ACCEL_MOUNT_MATRIX`, and live `enum=` next to live `T=` (not the persisted json transform).
+
 ## What this proves about Tilt
 
 1. **T2 chassis is this tablet**, not the W620 (no IIO) and not the CachyOS RT08WT (IIO unreadable).

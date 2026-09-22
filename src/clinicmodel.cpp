@@ -11,6 +11,8 @@
 #include <QProcess>
 #include <QTimer>
 
+#include <QtDBus/QDBusConnection>
+
 #include <fcntl.h>
 #include <unistd.h>
 #include <xf86drm.h>
@@ -132,6 +134,7 @@ ClinicModel::ClinicModel(QObject *parent)
             "SWCursor needs an Xorg restart. This chassis has not shown an inverted sprite.");
         m_arrowSource = QStringLiteral("diagnose only");
     }
+    bindTiltSignals();
     refresh();
 }
 
@@ -144,6 +147,7 @@ void ClinicModel::refresh()
     probeDrm();
     probeOutputTransform();
     probeInputs();
+    probeTilt();
     loadHomeState();
     refreshFollowStatus();
     buildReport();
@@ -337,6 +341,68 @@ void ClinicModel::fillPenCard()
         m_penDetail += QLatin1Char('\n') + m_penError;
 }
 
+void ClinicModel::probeTilt()
+{
+    m_tilt = TiltBack::TiltProbe::probe();
+    fillTiltCard();
+}
+
+void ClinicModel::bindTiltSignals()
+{
+    QDBusConnection::systemBus().connect(
+        QStringLiteral("net.hadess.SensorProxy"),
+        QStringLiteral("/net/hadess/SensorProxy"),
+        QStringLiteral("org.freedesktop.DBus.Properties"),
+        QStringLiteral("PropertiesChanged"), this,
+        SLOT(onSensorProxyChanged()));
+}
+
+void ClinicModel::onSensorProxyChanged()
+{
+    probeOutputTransform();
+    probeTilt();
+    buildReport();
+    emit changed();
+}
+
+void ClinicModel::fillTiltCard()
+{
+    m_tiltSource = QStringLiteral("sysfs + udev + SensorProxy");
+    m_tiltBackend = m_tiltSource;
+    m_tiltValue = m_tilt.honestyText;
+    if (m_tilt.honesty == TiltBack::TiltHonesty::NoSensor) {
+        m_tiltDetail = m_tilt.proxyPresent
+            ? QStringLiteral("No IIO accelerometer. SensorProxy HasAccelerometer=%1.")
+                  .arg(m_tilt.hasAccelerometer ? QStringLiteral("true")
+                                               : QStringLiteral("false"))
+            : QStringLiteral("No IIO accelerometer. SensorProxy is not on the bus.");
+        return;
+    }
+    QStringList d;
+    if (!m_tilt.name.isEmpty())
+        d << m_tilt.name;
+    if (!m_tilt.modalias.isEmpty())
+        d << m_tilt.modalias;
+    if (!m_tilt.label.isEmpty())
+        d << QStringLiteral("label %1").arg(m_tilt.label);
+    if (!m_tilt.extraId.isEmpty() && m_tilt.extraId != m_tilt.name)
+        d << m_tilt.extraId;
+    d << QStringLiteral("kernel matrix %1")
+             .arg(m_tilt.kernelMatrix.isEmpty() ? QStringLiteral("(none)")
+                                                : m_tilt.kernelMatrix);
+    d << QStringLiteral("udev ACCEL_MOUNT_MATRIX %1")
+             .arg(m_tilt.udevMatrix.isEmpty() ? QStringLiteral("(none)")
+                                              : m_tilt.udevMatrix);
+    if (!m_tilt.proxyType.isEmpty())
+        d << QStringLiteral("proxy %1").arg(m_tilt.proxyType);
+    const QString e = m_tilt.orientation.isEmpty() ? QStringLiteral("(none)")
+                                                   : m_tilt.orientation;
+    d << QStringLiteral("enum=%1  T=%2").arg(e, m_outputTransform);
+    if (!m_tilt.reason.isEmpty() && m_tilt.honesty != TiltBack::TiltHonesty::Readable)
+        d << m_tilt.reason;
+    m_tiltDetail = d.join(QLatin1Char('\n'));
+}
+
 void ClinicModel::buildReport()
 {
     QStringList lines;
@@ -348,6 +414,32 @@ void ClinicModel::buildReport()
           << QStringLiteral("T live: %1").arg(m_outputTransform);
     if (!m_persistedTransform.isEmpty())
         lines << QStringLiteral("T persisted: %1").arg(m_persistedTransform);
+    lines << QStringLiteral("Tilt: %1").arg(m_tilt.honestyText);
+    if (!m_tilt.name.isEmpty())
+        lines << QStringLiteral("IIO: %1").arg(m_tilt.name);
+    if (!m_tilt.modalias.isEmpty())
+        lines << QStringLiteral("modalias: %1").arg(m_tilt.modalias);
+    if (!m_tilt.extraId.isEmpty() && m_tilt.extraId != m_tilt.name)
+        lines << QStringLiteral("ACPI/OF: %1").arg(m_tilt.extraId);
+    if (!m_tilt.sysPath.isEmpty())
+        lines << QStringLiteral("IIO sys: %1").arg(m_tilt.sysPath);
+    lines << QStringLiteral("kernel matrix: %1")
+                 .arg(m_tilt.kernelMatrix.isEmpty() ? QStringLiteral("(none)")
+                                                    : m_tilt.kernelMatrix);
+    lines << QStringLiteral("udev ACCEL_MOUNT_MATRIX: %1")
+                 .arg(m_tilt.udevMatrix.isEmpty() ? QStringLiteral("(none)")
+                                                  : m_tilt.udevMatrix);
+    lines << QStringLiteral("IIO_SENSOR_PROXY_TYPE: %1")
+                 .arg(m_tilt.proxyType.isEmpty() ? QStringLiteral("(none)")
+                                                : m_tilt.proxyType);
+    lines << QStringLiteral("HasAccelerometer: %1")
+                 .arg(!m_tilt.proxyPresent
+                          ? QStringLiteral("n/a")
+                          : (m_tilt.hasAccelerometer ? QStringLiteral("true")
+                                                     : QStringLiteral("false")));
+    lines << QStringLiteral("enum: %1")
+                 .arg(m_tilt.orientation.isEmpty() ? QStringLiteral("(none)")
+                                                   : m_tilt.orientation);
     lines << QStringLiteral("Arrow: not inverted / not probed")
           << m_homeLine
           << m_persistLine

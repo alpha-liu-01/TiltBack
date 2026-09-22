@@ -305,6 +305,13 @@ ApplicationWindow {
                 backend: clinic.arrowBackend
             }
             LayerCard {
+                title: qsTr("Tilt")
+                value: clinic.tiltValue
+                detail: clinic.tiltDetail
+                how: clinic.tiltSource
+                backend: clinic.tiltBackend
+            }
+            LayerCard {
                 title: qsTr("Home / Follow")
                 value: clinic.homeLine
                 detail: clinic.persistLine + "\n" + clinic.followStatus

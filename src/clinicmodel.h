@@ -2,6 +2,7 @@
 
 #include "backend.h"
 #include "kwininput.h"
+#include "tiltprobe.h"
 
 #include <QObject>
 #include <QString>
@@ -34,6 +35,11 @@ class ClinicModel : public QObject
     Q_PROPERTY(QString arrowDetail READ arrowDetail NOTIFY changed)
     Q_PROPERTY(QString arrowSource READ arrowSource NOTIFY changed)
     Q_PROPERTY(QString arrowBackend READ arrowBackend NOTIFY changed)
+
+    Q_PROPERTY(QString tiltValue READ tiltValue NOTIFY changed)
+    Q_PROPERTY(QString tiltDetail READ tiltDetail NOTIFY changed)
+    Q_PROPERTY(QString tiltSource READ tiltSource NOTIFY changed)
+    Q_PROPERTY(QString tiltBackend READ tiltBackend NOTIFY changed)
 
     Q_PROPERTY(QString reportText READ reportText NOTIFY changed)
     Q_PROPERTY(QString homeLine READ homeLine NOTIFY changed)
@@ -77,6 +83,11 @@ public:
     QString arrowSource() const { return m_arrowSource; }
     QString arrowBackend() const { return m_arrowBackend; }
 
+    QString tiltValue() const { return m_tiltValue; }
+    QString tiltDetail() const { return m_tiltDetail; }
+    QString tiltSource() const { return m_tiltSource; }
+    QString tiltBackend() const { return m_tiltBackend; }
+
     QString reportText() const { return m_reportText; }
     QString homeLine() const { return m_homeLine; }
     QString persistLine() const { return m_persistLine; }
@@ -112,6 +123,9 @@ public:
 signals:
     void changed();
 
+private slots:
+    void onSensorProxyChanged();
+
 private:
     using Digitizer = TiltBack::Digitizer;
     using DigitizerClass = TiltBack::DigitizerClass;
@@ -120,10 +134,13 @@ private:
     void probeDrm();
     void probeOutputTransform();
     void probeInputs();
+    void probeTilt();
+    void bindTiltSignals();
     void buildReport();
     void fillPictureCard();
     void fillFingerCard();
     void fillPenCard();
+    void fillTiltCard();
     bool anyPending() const;
     void ensureTimer();
     void startPictureCountdown();
@@ -175,6 +192,12 @@ private:
     QString m_arrowDetail = QStringLiteral("Cursor plane is Phase 6. This chassis has not shown an inverted arrow.");
     QString m_arrowSource = QStringLiteral("not probed");
     QString m_arrowBackend = QStringLiteral("no");
+
+    QString m_tiltValue = QStringLiteral("no sensor");
+    QString m_tiltDetail;
+    QString m_tiltSource = QStringLiteral("sysfs + udev + SensorProxy");
+    QString m_tiltBackend = QStringLiteral("sysfs + udev + SensorProxy");
+    TiltBack::TiltFact m_tilt;
 
     QString m_reportText;
     QString m_homeLine;
