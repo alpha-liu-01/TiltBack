@@ -398,6 +398,14 @@ void ClinicModel::fillTiltCard()
     d << QStringLiteral("udev ACCEL_MOUNT_MATRIX %1")
              .arg(m_tilt.udevMatrix.isEmpty() ? QStringLiteral("(none)")
                                               : m_tilt.udevMatrix);
+    {
+        const int idx = TiltBack::mountMatrixIndex(
+            !m_tiltLastApplied.isEmpty() ? m_tiltLastApplied : m_tilt.udevMatrix);
+        if (idx >= 0)
+            d << QStringLiteral("%1/8  %2")
+                     .arg(idx)
+                     .arg(TiltBack::mountMatrixAt(idx));
+    }
     if (!m_tilt.proxyType.isEmpty())
         d << QStringLiteral("proxy %1").arg(m_tilt.proxyType);
     const QString e = m_tilt.orientation.isEmpty() ? QStringLiteral("(none)")
@@ -657,8 +665,10 @@ bool ClinicModel::requestTiltOp(bool remove, const QString &matrix, QString *err
 
 void ClinicModel::applyTilt(const QString &kind)
 {
-    const QString matrix = TiltBack::normalizeMountMatrix(kind);
     m_tilt = TiltBack::TiltProbe::probe();
+    const QString current = !m_tiltLastApplied.isEmpty() ? m_tiltLastApplied
+                                                         : m_tilt.udevMatrix;
+    const QString matrix = TiltBack::normalizeMountMatrix(kind, current);
     if (m_tilt.honesty != TiltBack::TiltHonesty::Readable) {
         m_tiltError = QStringLiteral("Tilt apply needs a readable IMU");
         fillTiltCard();
@@ -677,6 +687,19 @@ void ClinicModel::applyTilt(const QString &kind)
         emit changed();
         return;
     }
+    if (matrix.isEmpty()) {
+        m_tiltError = QStringLiteral("unknown tilt matrix");
+        fillTiltCard();
+        emit changed();
+        return;
+    }
+    if (!m_tiltPending) {
+        const bool haveRule = QFile::exists(
+            QStringLiteral("/etc/udev/rules.d/61-tiltback-accel.rules"));
+        m_tiltRevertRemove = !haveRule;
+        m_tiltRevertMatrix = haveRule ? TiltBack::canonicalMountMatrix(current)
+                                      : QString();
+    }
     QString err;
     if (!requestTiltOp(false, matrix, &err)) {
         m_tiltError = err;
@@ -685,6 +708,7 @@ void ClinicModel::applyTilt(const QString &kind)
         return;
     }
     m_tiltError.clear();
+    m_tiltLastApplied = matrix;
     m_tiltPendingLabel = QStringLiteral("sensor reload  %1").arg(matrix);
     startTiltCountdown();
     probeOutputTransform();
@@ -697,20 +721,27 @@ void ClinicModel::keepTilt()
 {
     if (!m_tiltPending)
         return;
+    m_tiltKeptMatrix = m_tiltLastApplied;
     stopTiltCountdown();
     refresh();
 }
 
 void ClinicModel::revertTilt()
 {
-    if (!m_tiltPending && !QFile::exists(QStringLiteral("/etc/udev/rules.d/61-tiltback-accel.rules"))) {
+    const bool haveRule = QFile::exists(
+        QStringLiteral("/etc/udev/rules.d/61-tiltback-accel.rules"));
+    if (!m_tiltPending && !haveRule && m_tiltRevertMatrix.isEmpty()) {
         refresh();
         return;
     }
     stopTiltCountdown();
     QString err;
-    if (!requestTiltOp(true, {}, &err))
+    const bool ok = m_tiltRevertRemove
+        ? requestTiltOp(true, {}, &err)
+        : requestTiltOp(false, m_tiltRevertMatrix, &err);
+    if (!ok)
         m_tiltError = err;
+    m_tiltLastApplied.clear();
     refresh();
 }
 
@@ -934,6 +965,7 @@ void ClinicModel::saveHome()
         m_outputTransform = live.tKwin;
     }
     probeInputs();
+    probeTilt();
     TiltBack::HomeProfile home;
     home.tHome = m_outputTransform;
     home.rTouch = m_finger.ok ? m_finger.r : 0;
@@ -944,6 +976,9 @@ void ClinicModel::saveHome()
     home.penName = m_pen.name;
     home.penVendor = m_pen.vendor;
     home.penProduct = m_pen.product;
+    home.accelMountMatrix = !m_tilt.udevMatrix.isEmpty()
+        ? TiltBack::canonicalMountMatrix(m_tilt.udevMatrix)
+        : m_tiltKeptMatrix;
     m_home = home;
 
     QString homeErr;
@@ -952,6 +987,8 @@ void ClinicModel::saveHome()
                      .arg(home.tHome)
                      .arg(home.rTouch)
                      .arg(home.rPen);
+    if (!home.accelMountMatrix.isEmpty())
+        m_homeLine += QStringLiteral("  tilt=%1").arg(home.accelMountMatrix);
     m_persistHow = m_backend->persistHow();
     if (m_backend->persistKcminput()) {
         QString persistErr;
@@ -1005,6 +1042,8 @@ void ClinicModel::loadHomeState()
                      .arg(m_home.tHome)
                      .arg(m_home.rTouch)
                      .arg(m_home.rPen);
+    if (!m_home.accelMountMatrix.isEmpty())
+        m_homeLine += QStringLiteral("  tilt=%1").arg(m_home.accelMountMatrix);
     if (m_persistLine.isEmpty()) {
         m_persistLine = haveFile
             ? QStringLiteral("home.json loaded")

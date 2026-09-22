@@ -250,24 +250,99 @@ TiltFact TiltProbe::probe()
     return f;
 }
 
+namespace {
+
+const QString kMountMatrix[] = {
+    QStringLiteral("1, 0, 0; 0, 1, 0; 0, 0, 1"),
+    QStringLiteral("0, 1, 0; -1, 0, 0; 0, 0, 1"),
+    QStringLiteral("-1, 0, 0; 0, -1, 0; 0, 0, 1"),
+    QStringLiteral("0, -1, 0; 1, 0, 0; 0, 0, 1"),
+    QStringLiteral("1, 0, 0; 0, 1, 0; 0, 0, -1"),
+    QStringLiteral("0, 1, 0; -1, 0, 0; 0, 0, -1"),
+    QStringLiteral("-1, 0, 0; 0, -1, 0; 0, 0, -1"),
+    QStringLiteral("0, -1, 0; 1, 0, 0; 0, 0, -1"),
+};
+
+QString compactMatrix(const QString &matrix)
+{
+    QString n = matrix.trimmed();
+    n.remove(QLatin1Char(' '));
+    return n;
+}
+
+} // namespace
+
 QString identityMountMatrix()
 {
-    return QStringLiteral("1, 0, 0; 0, 1, 0; 0, 0, 1");
+    return kMountMatrix[0];
 }
 
 QString wikiMountMatrix()
 {
-    return QStringLiteral("0, 1, 0; -1, 0, 0; 0, 0, -1");
+    return kMountMatrix[5];
 }
 
-QString normalizeMountMatrix(const QString &kind)
+int mountMatrixCount()
+{
+    return 8;
+}
+
+QString mountMatrixAt(int index)
+{
+    if (index < 0 || index >= mountMatrixCount())
+        return {};
+    return kMountMatrix[index];
+}
+
+int mountMatrixIndex(const QString &matrix)
+{
+    const QString n = compactMatrix(matrix);
+    if (n.isEmpty())
+        return -1;
+    for (int i = 0; i < mountMatrixCount(); ++i) {
+        if (compactMatrix(kMountMatrix[i]) == n)
+            return i;
+    }
+    return -1;
+}
+
+QString nextMountMatrix(const QString &current)
+{
+    const int i = mountMatrixIndex(current);
+    return kMountMatrix[i < 0 ? 0 : (i + 1) % mountMatrixCount()];
+}
+
+QString prevMountMatrix(const QString &current)
+{
+    const int i = mountMatrixIndex(current);
+    const int n = mountMatrixCount();
+    return kMountMatrix[i < 0 ? n - 1 : (i + n - 1) % n];
+}
+
+QString canonicalMountMatrix(const QString &matrix)
+{
+    const int i = mountMatrixIndex(matrix);
+    if (i >= 0)
+        return kMountMatrix[i];
+    return matrix.trimmed();
+}
+
+QString normalizeMountMatrix(const QString &kind, const QString &current)
 {
     const QString k = kind.trimmed().toLower();
     if (k == QLatin1String("identity") || k == QLatin1String("id"))
         return identityMountMatrix();
     if (k == QLatin1String("wiki") || k == QLatin1String("trogdor"))
         return wikiMountMatrix();
-    return kind.trimmed();
+    if (k == QLatin1String("next"))
+        return nextMountMatrix(current);
+    if (k == QLatin1String("prev") || k == QLatin1String("previous"))
+        return prevMountMatrix(current);
+    bool ok = false;
+    const int idx = k.toInt(&ok);
+    if (ok && idx >= 0 && idx < mountMatrixCount())
+        return kMountMatrix[idx];
+    return canonicalMountMatrix(kind);
 }
 
 bool kernelMatrixBlocksApply(const QString &kernelMatrix)

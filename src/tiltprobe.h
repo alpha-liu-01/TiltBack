@@ -36,7 +36,13 @@ public:
 
 QString identityMountMatrix();
 QString wikiMountMatrix();
-QString normalizeMountMatrix(const QString &kind);
+QString mountMatrixAt(int index);
+int mountMatrixCount();
+int mountMatrixIndex(const QString &matrix);
+QString nextMountMatrix(const QString &current);
+QString prevMountMatrix(const QString &current);
+QString canonicalMountMatrix(const QString &matrix);
+QString normalizeMountMatrix(const QString &kind, const QString &current = QString());
 bool kernelMatrixBlocksApply(const QString &kernelMatrix);
 bool accelHelperInstalled();
 QString accelHelperHint();

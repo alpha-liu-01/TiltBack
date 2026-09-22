@@ -247,6 +247,8 @@ void FollowEngine::reloadHomeIfChanged()
     HomeProfile next = loadHome(product, m_backend->id() != QLatin1String("gnome"));
     if (next.tHome.isEmpty())
         return;
+    // accelMountMatrix is recorded in home.json only. Follow must not
+    // write udev or T, and must not restamp R when Save home adds it.
     const bool same = next.rTouch == m_home.rTouch && next.rPen == m_home.rPen
         && next.fingerName == m_home.fingerName && next.penName == m_home.penName
         && next.fingerVendor == m_home.fingerVendor && next.fingerProduct == m_home.fingerProduct

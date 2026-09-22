@@ -317,6 +317,7 @@ HomeProfile loadHome(const QString &dmiProduct, bool allowDmiSeed)
         h.penName = pen.value(QStringLiteral("name")).toString();
         h.penVendor = static_cast<quint32>(pen.value(QStringLiteral("vendor")).toInt());
         h.penProduct = static_cast<quint32>(pen.value(QStringLiteral("product")).toInt());
+        h.accelMountMatrix = o.value(QStringLiteral("accelMountMatrix")).toString();
         if (!h.tHome.isEmpty())
             return h;
     }
@@ -341,6 +342,8 @@ bool saveHomeFile(const HomeProfile &home, QString *error)
     o.insert(QStringLiteral("rPen"), home.rPen);
     o.insert(QStringLiteral("finger"), finger);
     o.insert(QStringLiteral("pen"), pen);
+    if (!home.accelMountMatrix.isEmpty())
+        o.insert(QStringLiteral("accelMountMatrix"), home.accelMountMatrix);
     const QByteArray data = QJsonDocument(o).toJson(QJsonDocument::Indented);
     return writeTextFile(homeProfilePath(), data, error);
 }

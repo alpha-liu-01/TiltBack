@@ -247,4 +247,8 @@ private:
     bool m_tiltPending = false;
     int m_tiltSeconds = 0;
     QString m_tiltPendingLabel;
+    QString m_tiltRevertMatrix;
+    bool m_tiltRevertRemove = true;
+    QString m_tiltLastApplied;
+    QString m_tiltKeptMatrix;
 };

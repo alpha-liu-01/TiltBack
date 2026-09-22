@@ -319,6 +319,26 @@ ApplicationWindow {
                     Button {
                         width: (parent.width - parent.spacing) / 2
                         height: Math.max(64, Math.round(root.height * 0.08))
+                        text: qsTr("Prev")
+                        font.pixelSize: Math.max(20, Math.round(root.width * 0.024))
+                        onClicked: clinic.applyTilt("prev")
+                    }
+                    Button {
+                        width: (parent.width - parent.spacing) / 2
+                        height: Math.max(64, Math.round(root.height * 0.08))
+                        text: qsTr("Next")
+                        font.pixelSize: Math.max(20, Math.round(root.width * 0.024))
+                        onClicked: clinic.applyTilt("next")
+                    }
+                }
+                Row {
+                    visible: clinic.tiltCanApply
+                    spacing: 12
+                    width: parent.width
+
+                    Button {
+                        width: (parent.width - parent.spacing) / 2
+                        height: Math.max(64, Math.round(root.height * 0.08))
                         text: qsTr("Identity")
                         font.pixelSize: Math.max(20, Math.round(root.width * 0.024))
                         onClicked: clinic.applyTilt("identity")

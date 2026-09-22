@@ -1,6 +1,6 @@
 # Case: Acer Chromebook Tab 510 (Google Trogdor)
 
-Read-only SSH classify on 2026-09-22 from `user@10.0.0.119`. T0 only: no TiltBack install, no udev rewrite, wiki rule left in place.
+Read-only SSH classify on 2026-09-22 from `user@10.0.0.119` (T0). The same chassis is now `user@10.0.0.117`. T0 only: no TiltBack install, no udev rewrite, wiki rule left in place.
 
 This is the first **readable IMU** box we own. The wiki mount matrix is already on. T0 records **readable + already corrected**, and the identity T2 must write — not a new matrix hunt.
 
@@ -94,6 +94,8 @@ SUBSYSTEM=="iio", ACTION!="remove", ATTR{name}=="cros-ec-accel", ATTRS{modalias}
 Live `udevadm info` on `iio:device2` flipped wiki → identity → wiki. `udevadm test` on `iio:device0` and `event0` kept the wiki leak value (not identity). Revert deleted our file. Wiki hash stayed `d7260870ffff7d9540c49b78aa13b73e66cf245906dad1485fb482e7005f72f0`. `name=iio:device2` is rejected in dest-test.
 
 Enum stayed `undefined`: raw was Z-dominant (`~0, ~-120, ~16700`) the whole time. That is the flat rest the plan warned about — a landscape hold is required to see `left-up` ↔ `right-up`. After proxy restart the sticky pre-apply `left-up` is gone until the next non-flat reading.
+
+T3 cycle (2026-09-22, `user@10.0.0.117`). Path unit still enabled. Landscape-ish hold, enum `left-up`, live `T` `Rotation 2` (`Rotated90`). Identity (`0/8`) changed live udev to identity and the enum to `bottom-up` (no reboot). Wiki (`5/8`) restored udev and enum `left-up`. Our rule stayed one well-formed line on `cros-ec-accel` only; `udevadm test` on `iio:device0` / `event0` still showed the wiki leak value, not a second identity. Wiki file hash unchanged. Keep left `61-tiltback-accel.rules` at the wiki 3×3. `accelMountMatrix` is the `home.json` field Save home writes; follow does not apply it. T0 already showed both portraits match this wiki frame.
 
 ## What this proves about Tilt
 

@@ -29,6 +29,7 @@ struct HomeProfile {
     QString penName;
     quint32 penVendor = 0;
     quint32 penProduct = 0;
+    QString accelMountMatrix;
 };
 
 QVariant unwrap(const QVariant &value);
